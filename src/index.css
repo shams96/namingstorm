@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&family=Syne:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Syne", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-black text-zinc-200 font-sans antialiased selection:bg-[#CCFF00] selection:text-black;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight text-white;
+  }
+  
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-black border-l border-zinc-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-800;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-700;
+  }
+}
+
+.markdown-body {
+  @apply text-zinc-300 leading-relaxed text-sm md:text-base;
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  @apply text-white font-display font-bold tracking-tight;
+}
+
+/* NAME_1 / NAME_2 / NAME_3 — the hero name headers */
+.markdown-body h2 {
+  @apply text-2xl md:text-3xl text-[#CCFF00] mt-12 mb-6 pb-4 border-b border-zinc-800 uppercase tracking-widest;
+}
+
+/* First name — no top margin */
+.markdown-body h2:first-of-type {
+  @apply mt-2;
+}
+
+.markdown-body h1 { @apply text-3xl text-[#CCFF00] mb-6; }
+.markdown-body h3 { @apply text-base text-zinc-100 mt-6 mb-2 uppercase tracking-[0.15em]; }
+
+.markdown-body p { @apply mb-4 font-normal text-zinc-300; }
+.markdown-body ul { @apply list-none mb-5 space-y-2 text-zinc-300 font-normal; }
+.markdown-body ul li { @apply relative pl-5; }
+.markdown-body ul li::before { 
+  content: '>'; 
+  @apply absolute left-0 text-[#CCFF00] font-mono text-xs top-1; 
+}
+.markdown-body ol { @apply list-decimal list-inside mb-5 space-y-2 text-zinc-300 font-normal; }
+
+/* Bold labels like **Strategy:** **Rationale:** */
+.markdown-body strong { @apply text-white font-semibold; }
+.markdown-body em { @apply text-[#CCFF00] italic; }
+
+/* Horizontal rules between name sections */
+.markdown-body hr {
+  @apply border-none border-t border-zinc-900 my-8;
+}
+
+.markdown-body blockquote { @apply border-l-2 border-[#CCFF00] pl-5 italic text-zinc-400 my-6 bg-[#CCFF00]/5 py-2 pr-4; }
+.markdown-body code { @apply font-mono bg-zinc-900 text-[#CCFF00] px-1.5 py-0.5 text-[0.85em] border border-zinc-800; }
+.markdown-body pre { @apply bg-[#050505] p-5 overflow-x-auto mb-6 border border-zinc-800 shadow-inner; }
+.markdown-body pre code { @apply bg-transparent p-0 text-zinc-200 border-none text-sm; }
+
+/* Score bar animation */
+.score-bar { transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Print / Export styles */
+@media print {
+  body { background: #fff !important; color: #111 !important; }
+  .no-print { display: none !important; }
+  .markdown-body { color: #111 !important; }
+  .markdown-body h2 { color: #111 !important; border-color: #ddd !important; }
+  .markdown-body h3 { color: #333 !important; }
+  .markdown-body strong { color: #000 !important; }
+  .markdown-body p, .markdown-body ul li { color: #444 !important; }
+  .markdown-body code { background: #f4f4f4 !important; color: #333 !important; border-color: #ddd !important; }
+  .markdown-body hr { border-color: #eee !important; }
+  .print-header { display: block !important; }
+}

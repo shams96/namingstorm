@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment / secrets
+.env.local
+.env*.local
+*.local
+
+# Test coverage
+coverage/
+
+# Drizzle generated migrations
+drizzle/
+
+# Misc
+zipFile.zip
+attached_assets/
+.neon
+*.tgz
+better-sqlite3-extract/
+dev.db
+*.log

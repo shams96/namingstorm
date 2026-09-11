@@ -1,0 +1,7 @@
+allowBuilds:
+  '@firebase/util': true
+  '@google/genai': true
+  better-sqlite3: true
+  es5-ext: true
+  esbuild: true
+  protobufjs: true

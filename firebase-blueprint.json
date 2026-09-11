@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of NamingStorm.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user's unique ID." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "role": { "type": "string", "enum": ["client", "admin"], "description": "The user's role." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the user was created." }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "A naming generation project.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The ID of the user who created this project." },
+        "productDescription": { "type": "string", "description": "The product description." },
+        "targetAudience": { "type": "string", "description": "The target audience." },
+        "additionalContext": { "type": "string", "description": "Additional context or specific data for consideration." },
+        "thinkingLevel": { "type": "number", "description": "The thinking level used (0-100)." },
+        "generatedContent": { "type": "string", "description": "The markdown output from the AI." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the project was created." }
+      },
+      "required": ["userId", "productDescription", "targetAudience", "thinkingLevel", "generatedContent", "createdAt"]
+    },
+    "Acquisition": {
+      "title": "Acquisition",
+      "description": "A domain and trademark acquisition package.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The ID of the user who purchased this." },
+        "projectId": { "type": "string", "description": "The ID of the project this name came from." },
+        "selectedName": { "type": "string", "description": "The name selected for acquisition." },
+        "domain": { "type": "string", "description": "The primary domain secured (e.g., .com)." },
+        "status": { "type": "string", "enum": ["processing", "secured", "failed", "pending_deposit", "deposit_paid"], "description": "The status of the acquisition." },
+        "basePrice": { "type": "number", "description": "The base price of the domain." },
+        "agencyMarkup": { "type": "number", "description": "The agency markup." },
+        "discountAmount": { "type": "number", "description": "The discount amount applied." },
+        "amountPaid": { "type": "number", "description": "The total amount to be paid in USD." },
+        "depositPaid": { "type": "number", "description": "The 1% deposit paid." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the acquisition was made." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "When the acquisition was last updated." }
+      },
+      "required": ["userId", "projectId", "selectedName", "domain", "status", "amountPaid", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles."
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Stores generated naming projects."
+    },
+    "/acquisitions/{acqId}": {
+      "schema": { "$ref": "#/entities/Acquisition" },
+      "description": "Stores domain and trademark acquisitions."
+    }
+  }
+}

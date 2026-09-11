@@ -1,0 +1,128 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+    
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+    
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "shams.islam2@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'role', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.email is string && isValidEmail(data.email) && data.email.size() < 150 &&
+             data.role in ['client', 'admin'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidProject(data) {
+      return hasOnlyAllowedFields(['userId', 'productDescription', 'targetAudience', 'additionalContext', 'thinkingLevel', 'generatedContent', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.productDescription is string && data.productDescription.size() > 0 && data.productDescription.size() < 20000 &&
+             data.targetAudience is string && data.targetAudience.size() > 0 && data.targetAudience.size() < 5000 &&
+             (!('additionalContext' in data) || (data.additionalContext is string && data.additionalContext.size() <= 10000)) &&
+             data.thinkingLevel is number && data.thinkingLevel >= 0 && data.thinkingLevel <= 100 &&
+             data.generatedContent is string && data.generatedContent.size() > 0 && data.generatedContent.size() < 100000 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidAcquisition(data) {
+      return hasOnlyAllowedFields(['userId', 'projectId', 'selectedName', 'domain', 'status', 'basePrice', 'agencyMarkup', 'discountAmount', 'amountPaid', 'depositPaid', 'createdAt', 'updatedAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.projectId is string && data.projectId.size() > 0 && data.projectId.size() < 100 &&
+             data.selectedName is string && data.selectedName.size() > 0 && data.selectedName.size() < 200 &&
+             data.domain is string && data.domain.size() > 0 && data.domain.size() < 200 &&
+             data.status in ['processing', 'secured', 'failed', 'pending_deposit', 'deposit_paid'] &&
+             (!('basePrice' in data) || (data.basePrice is number && data.basePrice >= 0)) &&
+             (!('agencyMarkup' in data) || (data.agencyMarkup is number && data.agencyMarkup >= 0)) &&
+             (!('discountAmount' in data) || (data.discountAmount is number && data.discountAmount >= 0)) &&
+             data.amountPaid is number && data.amountPaid >= 0 &&
+             (!('depositPaid' in data) || (data.depositPaid is number && data.depositPaid >= 0)) &&
+             data.createdAt is timestamp &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && 
+                    isOwner(userId) && 
+                    isValidUser(request.resource.data) && 
+                    uidUnchanged() && 
+                    ((request.resource.data.role == 'client') || isAdmin());
+      allow update: if isAuthenticated() && 
+                    isOwner(userId) && 
+                    isValidUser(request.resource.data) && 
+                    uidNotModified() && 
+                    ((request.resource.data.role == resource.data.role) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /projects/{projectId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() && 
+                    request.resource.data.userId == request.auth.uid && 
+                    isValidProject(request.resource.data);
+      allow update: if isAuthenticated() && 
+                    request.resource.data.userId == request.auth.uid && 
+                    request.resource.data.userId == resource.data.userId &&
+                    isValidProject(request.resource.data);
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+    }
+
+    match /acquisitions/{acqId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() && 
+                    request.resource.data.userId == request.auth.uid && 
+                    isValidAcquisition(request.resource.data);
+      allow update: if isAuthenticated() && 
+                    request.resource.data.userId == request.auth.uid && 
+                    request.resource.data.userId == resource.data.userId &&
+                    isValidAcquisition(request.resource.data) &&
+                    (request.resource.data.amountPaid == resource.data.amountPaid); // Prevent changing amount paid
+      allow delete: if isAdmin();
+    }
+  }
+}
