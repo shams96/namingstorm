@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: namingstorm
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm run build
+    startCommand: pnpm run start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Secrets — filled in manually in the Render dashboard, never committed.
+      - key: AI_INTEGRATIONS_GEMINI_API_KEY
+        sync: false
+      - key: AI_INTEGRATIONS_GEMINI_BASE_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: MARKERAPI_USERNAME
+        sync: false
+      - key: MARKERAPI_PASSWORD
+        sync: false

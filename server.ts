@@ -912,7 +912,10 @@ async function startServer() {
   initFirebaseAdmin();
 
   const app = await buildApp();
-  const PORT = 5000;
+  // Render (and most PaaS hosts) assign the port dynamically via $PORT and
+  // route external traffic to it — hardcoding 5000 works on Replit (which
+  // requires that specific port for its webview) but breaks anywhere else.
+  const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
   const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
 
   // Vite middleware for development
