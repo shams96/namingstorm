@@ -55,9 +55,10 @@ service cloud.firestore {
     }
 
     function isValidProject(data) {
-      return hasOnlyAllowedFields(['userId', 'productDescription', 'targetAudience', 'additionalContext', 'thinkingLevel', 'generatedContent', 'createdAt']) &&
+      return hasOnlyAllowedFields(['userId', 'productDescription', 'positioningStatement', 'targetAudience', 'additionalContext', 'thinkingLevel', 'generatedContent', 'createdAt']) &&
              data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
              data.productDescription is string && data.productDescription.size() > 0 && data.productDescription.size() < 20000 &&
+             data.positioningStatement is string && data.positioningStatement.size() > 0 && data.positioningStatement.size() < 500 &&
              data.targetAudience is string && data.targetAudience.size() > 0 && data.targetAudience.size() < 5000 &&
              (!('additionalContext' in data) || (data.additionalContext is string && data.additionalContext.size() <= 10000)) &&
              data.thinkingLevel is number && data.thinkingLevel >= 0 && data.thinkingLevel <= 100 &&

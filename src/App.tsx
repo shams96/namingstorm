@@ -1636,7 +1636,7 @@ export default function App() {
                                 onClick={() => {
                                   setSelectedName(name);
                                   setDomainStatus('idle');
-                                  toast.success(`"${name}" selected.`, { style: { background: '#050505', color: '#CCFF00', border: '1px solid #CCFF00' } });
+                                  toast.success(`"${name}" selected.`, { id: 'name-selected', style: { background: '#050505', color: '#CCFF00', border: '1px solid #CCFF00' } });
                                   setTimeout(() => document.getElementById('secure-asset-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
                                 }}
                                 className={`flex-1 text-[9px] font-mono uppercase tracking-widest px-2 py-1 transition-colors border ${isSelected ? 'bg-[#CCFF00] text-black border-[#CCFF00]' : 'text-zinc-400 border-zinc-800 hover:border-[#CCFF00]/50 hover:text-[#CCFF00]'}`}
@@ -1831,7 +1831,7 @@ export default function App() {
                               onClick={() => {
                                 setSelectedName(n);
                                 setDomainStatus('idle');
-                                toast.success(`"${n}" selected.`, { style: { background: '#050505', color: '#CCFF00', border: '1px solid #CCFF00' } });
+                                toast.success(`"${n}" selected.`, { id: 'name-selected', style: { background: '#050505', color: '#CCFF00', border: '1px solid #CCFF00' } });
                                 setTimeout(() => document.getElementById('secure-asset-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
                               }}
                               className="font-display font-bold py-2 px-4 border border-zinc-700 hover:border-[#CCFF00] text-white hover:text-[#CCFF00] transition-all text-sm"
