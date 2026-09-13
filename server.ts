@@ -10,8 +10,6 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import Stripe from 'stripe';
 import { runMigrations, StripeSync } from 'stripe-replit-sync';
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { sql as drizzleSql, eq as drizzleEq } from 'drizzle-orm';
@@ -176,11 +174,19 @@ export function isDbConfigured(): boolean {
   return !!url && url.startsWith('postgresql://') && !url.includes('username:password');
 }
 
-export function getDb() {
+export async function getDb() {
   const url = process.env.DATABASE_URL;
   if (url?.startsWith('postgresql://')) {
     return drizzlePg(new Pool({ connectionString: url }));
   }
+  // Local-dev-only fallback (no DATABASE_URL configured) — dynamically
+  // imported so better-sqlite3 (a native module, devDependency only) never
+  // has to be resolved in production, where DATABASE_URL always points at
+  // Postgres and this branch never runs.
+  const [{ default: Database }, { drizzle }] = await Promise.all([
+    import('better-sqlite3'),
+    import('drizzle-orm/better-sqlite3'),
+  ]);
   return drizzle(new Database('./dev.db'));
 }
 
@@ -814,7 +820,7 @@ Write exactly three things in this format — no extra commentary:
       const reqUser = (req as any).user;
       const stripe = getStripeClient();
       const host = `${req.protocol}://${req.get('host')}`;
-      const db = getDb();
+      const db = await getDb();
 
       // Find price from synced stripe.prices table
       let priceRow: any;
@@ -864,7 +870,7 @@ Write exactly three things in this format — no extra commentary:
       const reqUser = (req as any).user;
       if (reqUser.guest) return res.json({ active: false, plan: null });
       if (!isDbConfigured()) return res.json({ active: false, plan: null });
-      const db = getDb();
+      const db = await getDb();
       const rows = await db.select().from(users).where(drizzleEq(users.id, reqUser.uid));
       const customerId = rows[0]?.stripeCustomerId;
       if (!customerId) return res.json({ active: false, plan: null });
@@ -883,7 +889,7 @@ Write exactly three things in this format — no extra commentary:
       const reqUser = (req as any).user;
       if (reqUser.guest) return res.status(403).json({ error: 'Sign in to manage billing' });
       if (!isDbConfigured()) return res.status(503).json({ error: 'Billing is not configured in this environment yet.' });
-      const db = getDb();
+      const db = await getDb();
       const rows = await db.select().from(users).where(drizzleEq(users.id, reqUser.uid));
       const customerId = rows[0]?.stripeCustomerId;
       if (!customerId) return res.status(404).json({ error: 'No billing account found' });
