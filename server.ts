@@ -6,6 +6,7 @@ import { GoogleGenAI } from '@google/genai';
 import rateLimit from 'express-rate-limit';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import Stripe from 'stripe';
@@ -314,13 +315,25 @@ export async function buildApp(): Promise<express.Application> {
 
   app.set('trust proxy', 1);
 
-  // Baseline security headers on every response. CSP is intentionally omitted
-  // for now — this app's client makes direct requests to Google's Firebase
-  // Auth/Firestore domains and loads Google Fonts, and a CSP tight enough to
-  // matter but wrong in scope would silently break sign-in. Ship the
-  // unambiguous, zero-risk headers now; a properly-scoped CSP needs to be
-  // written and tested against the real Firebase domains before enabling.
+  // CSP scoped to exactly what this app loads: Firebase Auth (popup + token
+  // refresh), Firestore, Google profile photos, Google Fonts, and Stripe's
+  // redirect-based Checkout (no embedded Stripe.js/iframe, so no frame-src
+  // needed for it). Verified live against the actual sign-in flow, not just
+  // reasoned about — see commit message.
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self' https://apis.google.com https://www.gstatic.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https://*.googleusercontent.com",
+    "connect-src 'self' https://*.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com",
+    "frame-src https://accounts.google.com https://sound-octagon-444117-m9.firebaseapp.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+  ].join('; ');
+
   app.use((req, res, next) => {
+    res.setHeader('Content-Security-Policy', csp);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
@@ -353,6 +366,31 @@ export async function buildApp(): Promise<express.Application> {
   // API routes FIRST
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  // Permanently delete the caller's own account: Firestore user doc, their
+  // projects/acquisitions, and the Firebase Auth user itself. Guests have no
+  // account to delete (their session is local-only), so this only applies to
+  // signed-in users.
+  app.delete('/api/account', verifyAuth, async (req, res) => {
+    const reqUser = (req as any).user;
+    if (reqUser.guest) return res.status(400).json({ error: 'Guest sessions have no account to delete.' });
+    const uid = reqUser.uid;
+    try {
+      const fs = getFirestore();
+      const batch = fs.batch();
+      batch.delete(fs.collection('users').doc(uid));
+      for (const col of ['projects', 'acquisitions']) {
+        const snap = await fs.collection(col).where('userId', '==', uid).get();
+        snap.docs.forEach((d) => batch.delete(d.ref));
+      }
+      await batch.commit();
+      await getAuth().deleteUser(uid);
+      res.json({ deleted: true });
+    } catch (error) {
+      console.error('Account deletion error:', error);
+      res.status(500).json({ error: 'Could not delete account. Please try again.' });
+    }
   });
 
   app.post('/api/generate', verifyAuth, generateLimiter, async (req, res) => {

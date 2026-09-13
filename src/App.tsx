@@ -585,6 +585,27 @@ export default function App() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    const confirmed = window.confirm(
+      'Permanently delete your account and all saved projects? This cannot be undone.'
+    );
+    if (!confirmed) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/account', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      toast.success('Account deleted.');
+      await logout();
+    } catch (error) {
+      console.error('Account deletion failed:', error);
+      toast.error('Could not delete your account. Please try again or contact support.');
+    }
+  };
+
   const speakName = (name: string) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
@@ -1264,10 +1285,17 @@ export default function App() {
                 <span className="text-[9px] font-bold text-zinc-300">{(user.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
               </div>
             )}
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-xs text-zinc-200 truncate leading-tight">{user.displayName || user.email?.split('@')[0] || 'Signed in'}</p>
               {user.email && <p className="text-[10px] font-mono text-zinc-500 truncate leading-tight">{user.email}</p>}
             </div>
+            <button
+              onClick={handleDeleteAccount}
+              className="text-[10px] font-mono text-zinc-600 hover:text-red-400 transition-colors flex-shrink-0"
+              title="Permanently delete your account and data"
+            >
+              Delete account
+            </button>
           </div>
         ) : isGuest ? (
           <div className="hidden md:flex items-center gap-3 px-6 py-3 border-b border-zinc-900">
