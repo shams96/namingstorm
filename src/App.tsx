@@ -212,7 +212,7 @@ export default function App() {
         name: seedName,
         productDescription,
         targetAudience,
-        count: 8,
+        count: 10,
         excludeNames,
         divergence,
       }),
@@ -249,7 +249,7 @@ export default function App() {
     setGeneratingAlternatives(true);
     setAlternativesExhausted(false);
     const TARGET_AVAILABLE = 4;
-    const MAX_ROUNDS = 3;
+    const MAX_ROUNDS = 4;
 
     try {
       const takenNames = Object.entries(domainAvailability)
@@ -263,6 +263,30 @@ export default function App() {
       const seen = new Set<string>(parsedNames);
       const availabilityMap: Record<string, 'available' | 'taken' | 'unknown'> = {};
       const orderedNames: string[] = [];
+
+      // Guaranteed layer: every taken name may already have a confirmed-available
+      // deterministic domain variant (La-prefix/doubled-letter/+e/+s) — the exact
+      // same data the grid cards above use — fetched when we screened for exact
+      // .com availability. Surface it immediately rather than running a blind AI
+      // search that has no idea this already exists; otherwise this panel can
+      // report "no alternatives found" while a real one sits in the card above it.
+      for (const taken of takenNames) {
+        const variant = gridDomainVariants[taken];
+        if (!variant) continue;
+        const variantName = variant.domain.replace(/\.com$/i, '');
+        const properCased = variantName.charAt(0).toUpperCase() + variantName.slice(1);
+        if (seen.has(properCased)) continue;
+        seen.add(properCased);
+        orderedNames.push(properCased);
+        availabilityMap[properCased] = 'available';
+      }
+      if (orderedNames.length > 0) {
+        setAlternativeNames([...orderedNames]);
+        setAlternativeAvailability(prev => ({
+          ...prev,
+          ...Object.fromEntries(orderedNames.map(n => [n, 'available' as const])),
+        }));
+      }
 
       for (let round = 0; round < MAX_ROUNDS; round++) {
         const availableCount = orderedNames.filter(n => availabilityMap[n] === 'available').length;
@@ -290,6 +314,7 @@ export default function App() {
         newNames.forEach(n => { pending[n] = 'checking'; });
         setAlternativeAvailability(prev => ({ ...prev, ...pending }));
 
+        const extraVariants: string[] = [];
         await Promise.all(newNames.map(async (name) => {
           const clean = name.toLowerCase().replace(/[^a-z0-9]/g, '');
           let status: 'available' | 'taken' | 'unknown';
@@ -297,12 +322,33 @@ export default function App() {
             const r = await fetch(`/api/check-domain?name=${encodeURIComponent(clean)}`);
             const data = await r.json();
             status = data.available === true ? 'available' : data.available === false ? 'taken' : 'unknown';
+            // Even when the exact name is taken, the server already computed a
+            // deterministic domain variant (La-prefix/doubled-letter/+e/+s) for
+            // free — surface it too instead of throwing that lookup away, same
+            // fix as the guaranteed layer above but for AI-suggested candidates.
+            if (status === 'taken' && data.variant) {
+              const variantName = (data.variant.domain as string).replace(/\.com$/i, '');
+              const properCased = variantName.charAt(0).toUpperCase() + variantName.slice(1);
+              if (!seen.has(properCased)) {
+                seen.add(properCased);
+                extraVariants.push(properCased);
+                availabilityMap[properCased] = 'available';
+              }
+            }
           } catch {
             status = 'unknown';
           }
           availabilityMap[name] = status;
           setAlternativeAvailability(prev => ({ ...prev, [name]: status }));
         }));
+        if (extraVariants.length > 0) {
+          orderedNames.push(...extraVariants);
+          setAlternativeNames([...orderedNames]);
+          setAlternativeAvailability(prev => ({
+            ...prev,
+            ...Object.fromEntries(extraVariants.map(n => [n, 'available' as const])),
+          }));
+        }
       }
 
       const finalAvailable = orderedNames.filter(n => availabilityMap[n] === 'available').length;
@@ -959,7 +1005,7 @@ export default function App() {
                 <div className="w-6 h-6 bg-white flex items-center justify-center text-black">
                   <Terminal className="w-4 h-4" />
                 </div>
-                <span className="font-display font-bold text-white tracking-[0.1em] text-sm uppercase whitespace-nowrap">NamingStorm</span>
+                <span className="font-display font-extrabold text-white tracking-tight text-sm uppercase whitespace-nowrap">NamingStorm</span>
               </button>
             </div>
           <div className="flex items-center space-x-4">
@@ -1191,7 +1237,7 @@ export default function App() {
           <div className="w-8 h-8 bg-[#CCFF00] flex items-center justify-center text-black flex-shrink-0">
             <Terminal className="w-5 h-5" />
           </div>
-          <span className="font-display font-bold text-white tracking-[0.1em] text-base md:text-lg whitespace-nowrap">NamingStorm</span>
+          <span className="font-display font-extrabold text-white tracking-tight text-base md:text-lg whitespace-nowrap">NamingStorm</span>
         </div>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -1210,7 +1256,7 @@ export default function App() {
             <div className="w-8 h-8 bg-[#CCFF00] flex items-center justify-center text-black flex-shrink-0">
               <Terminal className="w-5 h-5" />
             </div>
-            <span className="font-display font-bold text-white tracking-[0.1em] text-lg whitespace-nowrap">NamingStorm</span>
+            <span className="font-display font-extrabold text-white tracking-tight text-lg whitespace-nowrap">NamingStorm</span>
           </div>
           <div className="flex items-center gap-4">
             {window.aistudio?.openSelectKey && (
