@@ -996,16 +996,16 @@ export default function App() {
       <div className="min-h-screen bg-black text-zinc-300 font-sans selection:bg-white selection:text-black overflow-x-hidden">
         {/* Navigation */}
         <nav className="fixed top-0 left-0 w-full border-b border-zinc-900 bg-black/80 backdrop-blur-md z-50">
-          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-6 min-h-16 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => { window.location.href = '/'; }}
                 className="flex items-center gap-3 hover:opacity-80 transition-opacity"
               >
-                <div className="w-6 h-6 bg-white flex items-center justify-center text-black">
+                <div className="w-7 h-7 bg-[#CCFF00] flex items-center justify-center text-black flex-shrink-0">
                   <Terminal className="w-4 h-4" />
                 </div>
-                <span className="font-display font-extrabold text-white tracking-tight text-sm uppercase whitespace-nowrap">NamingStorm</span>
+                <span className="font-display font-extrabold text-white tracking-tight text-base whitespace-nowrap">NamingStorm</span>
               </button>
             </div>
           <div className="flex items-center space-x-4">
