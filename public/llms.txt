@@ -1,0 +1,23 @@
+# NamingStorm
+
+> AI-powered brand and domain name generation platform.
+
+## Overview
+NamingStorm is an AI platform that generates business names using a structured 3-phase naming methodology (semantic shift, morphemic blending, blank-canvas invention) modeled on real naming-agency practice, combined with a deterministic sound-symbolism phonetic scorer. It produces brand names, phonetic/trademark/domain scores, real .com availability checks, and AI-generated brand stories for startups, e-commerce, and consumer brands.
+
+## Key Features
+- AI name generation using a 3-phase methodology (semantic shift, morphemic blending, invented "blank canvas" words)
+- Deterministic phonetic scoring based on published sound-symbolism research, independent of the AI's own self-assessment
+- Real .com domain availability checks (RDAP) with brandable alternative suggestions when a name is taken
+- Preliminary trademark screening (not a legal clearance search)
+- AI-generated brand story (tagline, investor pitch, brand voice) per name
+
+## Pricing
+- 5 free searches, no account required
+- $5 one-time for a 10-search pack
+- $12/month Pro subscription for unlimited reports
+
+## Important Links
+- [Homepage](https://namingstorm.com)
+- [Privacy Policy](https://namingstorm.com/privacy.html)
+- [Terms of Service](https://namingstorm.com/terms.html)
