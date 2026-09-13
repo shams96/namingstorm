@@ -993,178 +993,152 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-black text-zinc-300 font-sans selection:bg-white selection:text-black overflow-x-hidden">
+      <div className="min-h-screen bg-white text-neutral-700 selection:bg-[#7CB800] selection:text-white overflow-x-hidden [font-family:-apple-system,BlinkMacSystemFont,'Segoe_UI',Inter,Roboto,sans-serif]">
         {/* Navigation */}
-        <nav className="fixed top-0 left-0 w-full border-b border-zinc-900 bg-black/95 z-50">
-          <div className="max-w-7xl mx-auto px-6 min-h-16 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => { window.location.href = '/'; }}
-                className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-              >
-                <div className="w-7 h-7 bg-[#CCFF00] flex items-center justify-center text-black flex-shrink-0">
-                  <Terminal className="w-4 h-4" />
-                </div>
-                <span className="font-display font-extrabold text-white tracking-tight text-base whitespace-nowrap">NamingStorm</span>
-              </button>
-            </div>
-          <div className="flex items-center space-x-4">
-            {window.aistudio?.openSelectKey && (
-              <button
-                onClick={async () => {
-                  try {
-                    await window.aistudio?.openSelectKey();
-                    toast.success('API key selected successfully.');
-                  } catch (e) {
-                    toast.error('Failed to select API key.');
-                  }
-                }}
-                className="hidden md:flex items-center space-x-2 text-xs font-mono uppercase tracking-widest text-zinc-400 hover:text-white transition-colors"
-              >
-                <Fingerprint className="w-4 h-4" />
-                <span>[ Select API Key ]</span>
-              </button>
-            )}
-            {user ? (
-              <div className="flex items-center space-x-3">
-                {user.photoURL && (
-                  <img src={user.photoURL} alt="" className="w-6 h-6 rounded-full" />
-                )}
-                <span className="text-xs font-mono text-zinc-300 max-w-[120px] truncate">
-                  {user.displayName || user.email?.split('@')[0] || 'User'}
-                </span>
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="text-xs font-mono uppercase tracking-widest text-zinc-500 hover:text-red-400 transition-colors"
-                >
-                  [ Logout ]
-                </button>
+        <nav className="sticky top-0 left-0 w-full border-b border-neutral-200 bg-white/90 backdrop-saturate-150 z-50">
+          <div className="max-w-6xl mx-auto px-6 min-h-16 py-3 flex flex-wrap items-center justify-between gap-y-2">
+            <button
+              onClick={() => { window.location.href = '/'; }}
+              className="flex items-center gap-2.5 hover:opacity-70 transition-opacity flex-shrink-0"
+            >
+              <div className="w-7 h-7 rounded-full bg-[#7CB800] flex items-center justify-center text-white flex-shrink-0">
+                <Terminal className="w-4 h-4" />
               </div>
-            ) : (
-              <>
+              <span className="font-sans font-semibold text-neutral-900 tracking-tight text-base whitespace-nowrap">NamingStorm</span>
+            </button>
+
+            <div className="flex items-center gap-5 flex-shrink-0">
+              {window.aistudio?.openSelectKey && (
                 <button
-                  type="button"
-                  onClick={handleLoginAsGuest}
-                  className="text-xs font-mono uppercase tracking-widest text-zinc-500 hover:text-zinc-300 transition-colors"
+                  onClick={async () => {
+                    try {
+                      await window.aistudio?.openSelectKey();
+                      toast.success('API key selected successfully.');
+                    } catch (e) {
+                      toast.error('Failed to select API key.');
+                    }
+                  }}
+                  className="hidden md:flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-900 transition-colors"
                 >
-                  [ Guest ]
+                  <Fingerprint className="w-4 h-4" />
+                  <span>Select API Key</span>
                 </button>
-                <button 
-                  type="button"
-                  onClick={handleLoginWithGoogle}
-                  className="text-xs font-mono uppercase tracking-widest text-zinc-400 hover:text-white transition-colors"
-                >
-                  [ Authenticate ]
-                </button>
-              </>
-            )}
-          </div>
+              )}
+              {user ? (
+                <div className="flex items-center gap-3">
+                  {user.photoURL && (
+                    <img src={user.photoURL} alt="" className="w-6 h-6 rounded-full" />
+                  )}
+                  <span className="text-sm text-neutral-600 max-w-[120px] truncate">
+                    {user.displayName || user.email?.split('@')[0] || 'User'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={logout}
+                    className="text-sm text-neutral-400 hover:text-red-500 transition-colors"
+                  >
+                    Log out
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleLoginAsGuest}
+                    className="text-sm text-neutral-500 hover:text-neutral-900 transition-colors whitespace-nowrap"
+                  >
+                    Continue as guest
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLoginWithGoogle}
+                    className="bg-[#7CB800] text-white rounded-full px-5 py-2 text-sm font-medium hover:bg-[#6ba300] transition-colors whitespace-nowrap"
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </nav>
 
         {/* Hero Section */}
-        <section className="pt-32 pb-20 px-6 min-h-[90vh] flex flex-col justify-center relative overflow-hidden">
-          {/* Architectural Grid Background */}
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none z-0"></div>
-          {/* Ambient glow for depth */}
-          <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-[#CCFF00] opacity-[0.06] blur-[140px] rounded-full pointer-events-none z-0"></div>
-          {/* CRT scanline texture */}
-          <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,#ffffff03_2px,#ffffff03_4px)] pointer-events-none z-0"></div>
-
-          <div className="max-w-7xl mx-auto w-full relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12">
-            <div className="lg:col-span-8">
-              <div className="inline-flex items-center gap-2 border border-zinc-800 px-3 py-1 mb-8">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-[#CCFF00] opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#CCFF00]"></span>
-                </span>
-                <span className="text-[10px] font-mono text-[#CCFF00] uppercase tracking-[0.3em]">Protocol v3.1.4 Active</span>
-              </div>
-              <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold text-white leading-[0.9] tracking-tighter mb-8 uppercase drop-shadow-lg">
-                NamingStorm: The AI <br/>
-                <span className="text-[#CCFF00] drop-shadow-[0_0_30px_rgba(204,255,0,0.35)]">Naming Engine.</span>
-              </h1>
-              <p className="text-lg md:text-xl text-zinc-300 font-normal max-w-2xl mb-12 leading-relaxed">
-                Move beyond brainstorming. NamingStorm deploys multi-agent AI to engineer category-defining, highly acquirable brand names with architectural precision.
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                <button
-                  type="button"
-                  onClick={handleLoginWithGoogle}
-                  className="bg-[#CCFF00] text-black font-display font-bold uppercase tracking-[0.15em] py-5 px-8 hover:bg-[#E6FF00] active:scale-[0.97] transition-all flex items-center justify-center gap-3 text-sm shadow-[0_0_25px_rgba(204,255,0,0.3)] hover:shadow-[0_0_40px_rgba(204,255,0,0.5)]"
-                >
-                  Initialize Console <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLoginAsGuest}
-                  className="border border-zinc-700 text-zinc-300 font-display font-bold uppercase tracking-[0.15em] py-5 px-8 hover:border-zinc-500 hover:text-white active:scale-[0.97] transition-all flex items-center justify-center gap-3 text-sm"
-                >
-                  Try as Guest
-                </button>
-              </div>
+        <section className="pt-24 pb-20 px-6">
+          <div className="max-w-4xl mx-auto text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-4 py-1.5 mb-8">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-[#7CB800] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#7CB800]"></span>
+              </span>
+              <span className="text-xs font-medium text-neutral-500">Version 3.1.4 · Live</span>
             </div>
-            
-            <div className="lg:col-span-4 hidden lg:flex flex-col justify-end">
-              <div className="border-l border-zinc-900 pl-8 pb-8">
-                <p className="text-[10px] font-mono text-zinc-400 uppercase tracking-[0.2em] mb-4">[ System Status ]</p>
-                <div className="space-y-4 font-mono text-xs text-zinc-300">
-                  <div className="flex justify-between"><span>&gt;&gt;&gt; Linguistic Engine</span> <span className="text-white">Online</span></div>
-                  <div className="flex justify-between"><span>&gt;&gt;&gt; Semantic Shift</span> <span className="text-white">Active</span></div>
-                  <div className="flex justify-between"><span>&gt;&gt;&gt; Trademark DB</span> <span className="text-white">Synced</span></div>
-                  <div className="flex justify-between"><span>&gt;&gt;&gt; Latency</span> <span className="text-white">12ms</span></div>
-                </div>
-              </div>
+
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-semibold text-neutral-900 leading-[1.05] tracking-tight mb-6">
+              The AI naming engine<br/>
+              <span className="text-[#7CB800]">for founders who ship.</span>
+            </h1>
+            <p className="text-lg md:text-xl text-neutral-500 max-w-2xl mx-auto mb-10 leading-relaxed">
+              Move beyond brainstorming. NamingStorm engineers category-defining, highly acquirable brand names — with phonetic scoring, trademark screening, and domain checks built in.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3 items-center justify-center">
+              <button
+                type="button"
+                onClick={handleLoginWithGoogle}
+                className="bg-[#7CB800] text-white font-medium rounded-full py-3.5 px-8 hover:bg-[#6ba300] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm"
+              >
+                Get started <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleLoginAsGuest}
+                className="border border-neutral-300 text-neutral-700 font-medium rounded-full py-3.5 px-8 hover:border-neutral-400 hover:bg-neutral-50 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm"
+              >
+                Try as guest
+              </button>
             </div>
           </div>
         </section>
 
         {/* Advantages Section */}
-        <section className="py-24 px-6 border-t border-zinc-900 bg-[#020202] relative">
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-16 md:mb-24 flex flex-col md:flex-row md:items-end justify-between gap-8">
-              <div>
-                <h2 className="text-3xl md:text-5xl font-display font-bold text-white tracking-tighter uppercase mb-4">The Asymmetric <br/>Advantage</h2>
-                <p className="text-zinc-400 font-mono text-xs uppercase tracking-[0.2em]">Traditional Agencies vs. NamingStorm</p>
-              </div>
-              <p className="text-zinc-300 max-w-md text-sm leading-relaxed">
-                Human brainstorming is constrained by cognitive bias and limited linguistic reach. Our architecture processes millions of semantic connections per second to uncover the optimal brand identity.
-              </p>
+        <section className="py-20 px-6 bg-neutral-50">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-semibold text-neutral-900 tracking-tight mb-4">Built to replace the whiteboard session</h2>
+              <p className="text-neutral-500 max-w-xl mx-auto">Human brainstorming is constrained by cognitive bias and limited linguistic reach. NamingStorm runs a structured naming methodology instead.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-zinc-900">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Advantage 1 */}
-              <div className="bg-[#020202] p-10 md:p-12 group hover:bg-[#050505] transition-colors">
-                <div className="w-10 h-10 border border-zinc-800 flex items-center justify-center mb-8 group-hover:border-white transition-colors">
-                  <Zap className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />
+              <div className="bg-white rounded-2xl p-8 border border-neutral-200 hover:shadow-lg hover:border-neutral-300 transition-all">
+                <div className="w-11 h-11 rounded-full bg-[#7CB800]/10 flex items-center justify-center mb-6">
+                  <Zap className="w-5 h-5 text-[#7CB800]" />
                 </div>
-                <h3 className="text-xl font-display font-bold text-white uppercase tracking-tight mb-4">Algorithmic Precision</h3>
-                <p className="text-zinc-400 text-sm leading-relaxed">
-                  We don't rely on "eureka" moments. Names are engineered using strict linguistic frameworks, phonetic scoring, and semantic shift protocols to guarantee memorability.
+                <h3 className="text-lg font-semibold text-neutral-900 mb-2">Algorithmic precision</h3>
+                <p className="text-neutral-500 text-sm leading-relaxed">
+                  We don't rely on "eureka" moments. Names are engineered using linguistic frameworks and phonetic scoring to guarantee memorability.
                 </p>
               </div>
 
               {/* Advantage 2 */}
-              <div className="bg-[#020202] p-10 md:p-12 group hover:bg-[#050505] transition-colors">
-                <div className="w-10 h-10 border border-zinc-800 flex items-center justify-center mb-8 group-hover:border-white transition-colors">
-                  <Globe className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />
+              <div className="bg-white rounded-2xl p-8 border border-neutral-200 hover:shadow-lg hover:border-neutral-300 transition-all">
+                <div className="w-11 h-11 rounded-full bg-[#7CB800]/10 flex items-center justify-center mb-6">
+                  <Globe className="w-5 h-5 text-[#7CB800]" />
                 </div>
-                <h3 className="text-xl font-display font-bold text-white uppercase tracking-tight mb-4">Global Pre-Clearance</h3>
-                <p className="text-zinc-400 text-sm leading-relaxed">
-                  Every generated name is instantly cross-referenced against global trademark databases and premium domain registries, eliminating legal friction before it begins.
+                <h3 className="text-lg font-semibold text-neutral-900 mb-2">Global pre-clearance</h3>
+                <p className="text-neutral-500 text-sm leading-relaxed">
+                  Every generated name is cross-referenced against trademark databases and domain registries, cutting legal friction before it starts.
                 </p>
               </div>
 
               {/* Advantage 3 */}
-              <div className="bg-[#020202] p-10 md:p-12 group hover:bg-[#050505] transition-colors">
-                <div className="w-10 h-10 border border-zinc-800 flex items-center justify-center mb-8 group-hover:border-white transition-colors">
-                  <Activity className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />
+              <div className="bg-white rounded-2xl p-8 border border-neutral-200 hover:shadow-lg hover:border-neutral-300 transition-all">
+                <div className="w-11 h-11 rounded-full bg-[#7CB800]/10 flex items-center justify-center mb-6">
+                  <Activity className="w-5 h-5 text-[#7CB800]" />
                 </div>
-                <h3 className="text-xl font-display font-bold text-white uppercase tracking-tight mb-4">Infinite Iteration</h3>
-                <p className="text-zinc-400 text-sm leading-relaxed">
-                  Traditional agencies provide 5-10 options after weeks of work. Our engine provides hundreds of highly-targeted, category-defining options in seconds.
+                <h3 className="text-lg font-semibold text-neutral-900 mb-2">Infinite iteration</h3>
+                <p className="text-neutral-500 text-sm leading-relaxed">
+                  Traditional agencies provide 5-10 options after weeks of work. Our engine provides hundreds of targeted options in seconds.
                 </p>
               </div>
             </div>
@@ -1172,36 +1146,35 @@ export default function App() {
         </section>
 
         {/* About Section */}
-        <section className="py-24 px-6 border-t border-zinc-900 bg-[#020202]">
-          <div className="max-w-5xl mx-auto text-center">
-            <p className="text-[10px] font-mono text-zinc-400 uppercase tracking-[0.3em] mb-4">About NamingStorm</p>
-            <h2 className="text-3xl md:text-5xl font-display font-bold text-white tracking-tighter uppercase mb-6">Built for founders, powered by the engine.</h2>
-            <p className="text-zinc-300 max-w-3xl mx-auto text-sm md:text-base leading-relaxed">
-              NamingStorm delivers AI-powered brand names, domain signals, and storytelling in seconds. It is powered by the NamingStorm Engine, a proprietary creative architecture that combines phonetic scoring, semantic indexing, and trademark-aware naming strategy.
+        <section className="py-20 px-6 bg-white">
+          <div className="max-w-3xl mx-auto text-center">
+            <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-4">About NamingStorm</p>
+            <h2 className="text-3xl md:text-4xl font-semibold text-neutral-900 tracking-tight mb-6">Built for founders, powered by the engine.</h2>
+            <p className="text-neutral-500 max-w-2xl mx-auto leading-relaxed">
+              NamingStorm delivers AI-powered brand names, domain signals, and storytelling in seconds. It's powered by the NamingStorm Engine, a naming architecture that combines phonetic scoring, semantic indexing, and trademark-aware strategy.
             </p>
           </div>
         </section>
 
         {/* Footer CTA */}
-        <section className="py-32 px-6 border-t border-zinc-900 text-center relative overflow-hidden">
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:2rem_2rem] pointer-events-none z-0"></div>
-          <div className="max-w-3xl mx-auto relative z-10">
-            <h2 className="text-4xl md:text-6xl font-display font-bold text-white tracking-tighter uppercase mb-8">Deploy the Engine</h2>
-            <p className="text-zinc-400 mb-12">Secure your category-defining brand name today.</p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button 
+        <section className="py-24 px-6 bg-neutral-50 text-center">
+          <div className="max-w-2xl mx-auto">
+            <h2 className="text-3xl md:text-5xl font-semibold text-neutral-900 tracking-tight mb-6">Ready when you are.</h2>
+            <p className="text-neutral-500 mb-10">Secure your category-defining brand name today.</p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
                 type="button"
                 onClick={handleLoginWithGoogle}
-                className="bg-white text-black font-display font-bold uppercase tracking-[0.15em] py-5 px-10 hover:bg-zinc-200 transition-colors inline-flex items-center justify-center gap-3 text-sm"
+                className="bg-[#7CB800] text-white font-medium rounded-full py-3.5 px-8 hover:bg-[#6ba300] transition-colors inline-flex items-center justify-center gap-2 text-sm"
               >
-                <LogIn className="w-4 h-4" /> Authenticate
+                <LogIn className="w-4 h-4" /> Sign in
               </button>
               <button
                 type="button"
                 onClick={handleLoginAsGuest}
-                className="border border-zinc-600 text-zinc-300 font-display font-bold uppercase tracking-[0.15em] py-5 px-10 hover:border-zinc-400 hover:text-white transition-colors inline-flex items-center justify-center gap-3 text-sm"
+                className="border border-neutral-300 text-neutral-700 font-medium rounded-full py-3.5 px-8 hover:border-neutral-400 hover:bg-white transition-colors inline-flex items-center justify-center gap-2 text-sm"
               >
-                Try as Guest
+                Try as guest
               </button>
             </div>
           </div>
