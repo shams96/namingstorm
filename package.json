@@ -9,11 +9,11 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
-    "build": "vite build",
+    "build": "vite build && node scripts/build-server.mjs",
     "preview": "vite preview",
     "test": "vitest",
     "test:watch": "vitest watch",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist dist-server",
     "lint": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "db:seed": "npx tsx scripts/seed-products.ts"
@@ -62,6 +62,7 @@
     "better-sqlite3": "^13.0.1",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
+    "esbuild": "^0.25.12",
     "jsdom": "^29.1.1",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.1.14",
