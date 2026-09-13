@@ -46,7 +46,9 @@ export const getSoundProfile = (name: string): SoundProfile => {
   return { cue, label, traits };
 };
 
-export const scoreNameFn = (name: string) => {
+export type DomainAvailability = 'available' | 'taken' | 'unknown' | 'checking' | undefined;
+
+export const scoreNameFn = (name: string, availability?: DomainAvailability) => {
   const c = name.toLowerCase().replace(/[^a-z]/g, '');
   if (!c) return { phonetic: 0, trademark: 0, domain: 0, category: 0 };
 
@@ -63,9 +65,23 @@ export const scoreNameFn = (name: string) => {
   if (/[xzq]/.test(c)) trademark += 8;
   trademark = Math.max(40, Math.min(98, trademark));
 
-  const domain = c.length >= 8 ? 91 : c.length >= 7 ? 81 : c.length >= 6 ? 67 : c.length >= 5 ? 51 : 31;
+  // Domain score must reflect the real .com availability check, not a length
+  // guess — a taken domain is a hard blocker regardless of how "domainable"
+  // the name looks, so it overrides the heuristic rather than blending with it.
+  let domain: number;
+  if (availability === 'taken') {
+    domain = 5;
+  } else if (availability === 'available') {
+    domain = 97;
+  } else {
+    domain = c.length >= 8 ? 91 : c.length >= 7 ? 81 : c.length >= 6 ? 67 : c.length >= 5 ? 51 : 31;
+  }
+
   const hash = c.split('').reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) & 0xffff, 0);
-  const category = 72 + (hash % 20);
+  let category = 72 + (hash % 20);
+  // Category ("brand fit") is meaningless if you can't register the domain —
+  // a taken .com caps the overall picture so it can't outrank a registerable name.
+  if (availability === 'taken') category = Math.min(category, 35);
 
   return { phonetic, trademark, domain, category };
 }

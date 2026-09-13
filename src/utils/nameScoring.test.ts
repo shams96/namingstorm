@@ -19,6 +19,23 @@ describe('scoreNameFn', () => {
     const nice = scoreNameFn('CloudNova');
     expect(nice.trademark).toBeLessThan(scoreNameFn('Nova').trademark);
   });
+
+  it('a taken .com overrides the length-based domain score, regardless of other scores', () => {
+    const taken = scoreNameFn('Zavira', 'taken');
+    const unknown = scoreNameFn('Zavira', 'unknown');
+    expect(taken.domain).toBeLessThan(unknown.domain);
+    expect(taken.domain).toBeLessThanOrEqual(10);
+    // Trademark/phonetic are independent qualities and must not be corrupted by domain status.
+    expect(taken.trademark).toBe(unknown.trademark);
+    expect(taken.phonetic).toBe(unknown.phonetic);
+    // Category (overall brand fit) is capped so a taken domain can't outrank a registerable name.
+    expect(taken.category).toBeLessThanOrEqual(35);
+  });
+
+  it('an available .com scores the domain metric near-perfect', () => {
+    const available = scoreNameFn('Zavira', 'available');
+    expect(available.domain).toBeGreaterThanOrEqual(95);
+  });
 });
 
 describe('getSoundProfile', () => {

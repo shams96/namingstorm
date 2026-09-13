@@ -47,10 +47,22 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'email', 'role', 'createdAt']) &&
+      return hasOnlyAllowedFields(['uid', 'email', 'role', 'createdAt', 'phone']) &&
              data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
              data.email is string && isValidEmail(data.email) && data.email.size() < 150 &&
              data.role in ['client', 'admin'] &&
+             data.createdAt is timestamp &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() > 0 && data.phone.size() < 20));
+    }
+
+    function isValidFeedback(data) {
+      return hasOnlyAllowedFields(['description', 'screenshot', 'page', 'userAgent', 'uid', 'email', 'createdAt']) &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 2000 &&
+             (!('screenshot' in data) || (data.screenshot is string && data.screenshot.size() < 500000)) &&
+             data.page is string && data.page.size() < 300 &&
+             data.userAgent is string && data.userAgent.size() < 300 &&
+             (!('uid' in data) || data.uid == null || (data.uid is string && data.uid.size() < 100)) &&
+             (!('email' in data) || data.email == null || (data.email is string && data.email.size() < 150)) &&
              data.createdAt is timestamp;
     }
 
@@ -111,6 +123,12 @@ service cloud.firestore {
                     request.resource.data.userId == resource.data.userId &&
                     isValidProject(request.resource.data);
       allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+    }
+
+    match /feedback/{feedbackId} {
+      allow create: if isValidFeedback(request.resource.data);
+      allow read, update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /acquisitions/{acqId} {

@@ -8,6 +8,7 @@ import { Toaster, toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { parseNames, parseEvolvedNames, parseNamePool, shouldShowPaywall } from './utils/parseNames';
 import { scoreNameFn, getSoundProfile } from './utils/nameScoring';
+import { FeedbackWidget } from './components/FeedbackWidget';
 
 const FREE_SEARCH_LIMIT = 5;
 const PAID_SEARCH_PACK_SIZE = 10;
@@ -78,6 +79,10 @@ export default function App() {
   // browser restart (until they clear site data), same as logged-in accounts.
   const isGuest = !!user?.isAnonymous;
   const fixedTopOffset = isGuest ? 48 : 0;
+  const [userPhone, setUserPhone] = useState<string | null>(null);
+  const [showPhonePrompt, setShowPhonePrompt] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
   
   const [productDescription, setProductDescription] = useState('');
   const [positioningStatement, setPositioningStatement] = useState('');
@@ -118,6 +123,7 @@ export default function App() {
   const [evolveLoading, setEvolveLoading] = useState(false);
   const [parsedEvolvedNames, setParsedEvolvedNames] = useState<string[]>([]);
   const [domainAvailability, setDomainAvailability] = useState<Record<string, 'checking' | 'available' | 'taken' | 'unknown'>>({});
+  const [gridDomainVariants, setGridDomainVariants] = useState<Record<string, { domain: string; technique: string } | null>>({});
 
   // Competitors input
   const [competitors, setCompetitors] = useState('');
@@ -156,10 +162,11 @@ export default function App() {
 
   // Check real .com availability for all generated names via RDAP
   useEffect(() => {
-    if (parsedNames.length === 0) { setDomainAvailability({}); return; }
+    if (parsedNames.length === 0) { setDomainAvailability({}); setGridDomainVariants({}); return; }
     const initial: Record<string, 'checking'> = {};
     parsedNames.forEach(n => { initial[n] = 'checking'; });
     setDomainAvailability(initial);
+    setGridDomainVariants({});
     const controller = new AbortController();
     parsedNames.forEach(async (name) => {
       const clean = name.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -170,6 +177,7 @@ export default function App() {
           ...prev,
           [name]: data.available === true ? 'available' : data.available === false ? 'taken' : 'unknown'
         }));
+        setGridDomainVariants(prev => ({ ...prev, [name]: data.variant ?? null }));
       } catch (err) {
         if ((err as Error)?.name === 'AbortError') return;
         setDomainAvailability(prev => ({ ...prev, [name]: 'unknown' }));
@@ -304,6 +312,43 @@ export default function App() {
     }
   };
 
+  // Soft, skippable prompt to capture a phone number once a report is ready —
+  // never at signup. Only for real accounts (name+email already exist via
+  // Google); guests have no durable identity worth texting.
+  useEffect(() => {
+    if (!user || isGuest || userPhone || parsedNames.length === 0 || loading) return;
+    if (sessionStorage.getItem('sl_phone_prompt_dismissed') === '1') return;
+    setShowPhonePrompt(true);
+  }, [user, isGuest, userPhone, parsedNames, loading]);
+
+  const handleSkipPhonePrompt = () => {
+    sessionStorage.setItem('sl_phone_prompt_dismissed', '1');
+    setShowPhonePrompt(false);
+  };
+
+  const handleSavePhone = async () => {
+    const clean = phoneInput.trim();
+    if (!/^[0-9+\-() ]{7,19}$/.test(clean)) {
+      toast.error('That doesn\'t look like a valid phone number.');
+      return;
+    }
+    if (!user) return;
+    setSavingPhone(true);
+    try {
+      await updateDoc(doc(db, 'users', user.uid), { phone: clean });
+      setUserPhone(clean);
+      setShowPhonePrompt(false);
+      toast.success("Got it — we'll text you when it's ready.", {
+        style: { background: '#050505', color: '#CCFF00', border: '1px solid #CCFF00' },
+      });
+    } catch (err) {
+      console.error('Failed to save phone:', err);
+      toast.error('Could not save that number. Please try again.');
+    } finally {
+      setSavingPhone(false);
+    }
+  };
+
   // Save name history to sessionStorage when new names are generated
   useEffect(() => {
     if (parsedNames.length === 0) return;
@@ -340,6 +385,8 @@ export default function App() {
               role: 'client',
               createdAt: serverTimestamp()
             });
+          } else {
+            setUserPhone(userSnap.data().phone ?? null);
           }
         } catch (error) {
           console.error('Failed to create user doc:', error);
@@ -1525,7 +1572,7 @@ export default function App() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {parsedNames.map((name, i) => {
-                        const scores = scoreNameFn(name);
+                        const scores = scoreNameFn(name, domainAvailability[name]);
                         const soundProfile = getSoundProfile(name);
                         const metrics = [
                           { label: 'Phonetic', value: scores.phonetic },
@@ -1585,7 +1632,21 @@ export default function App() {
                                     >
                                       Search on Sedo →
                                     </a>
-                                    <p className="text-[8px] font-mono text-zinc-600 mt-0.5">Or use "Evolve" below to find available variants</p>
+                                    {gridDomainVariants[name] ? (
+                                      <div className="mt-1.5 pt-1.5 border-t border-zinc-800 flex items-center gap-2">
+                                        <span className="text-[9px] font-mono text-[#CCFF00] uppercase tracking-widest">{gridDomainVariants[name]!.domain} — open</span>
+                                        <a
+                                          href={`https://www.namecheap.com/domains/registration/results/?domain=${gridDomainVariants[name]!.domain}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-[9px] font-mono text-[#CCFF00] hover:underline underline-offset-2"
+                                        >
+                                          Register →
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <p className="text-[8px] font-mono text-zinc-600 mt-0.5">Or use "Evolve" below to find available variants</p>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -2118,6 +2179,41 @@ export default function App() {
 
       {/* Account Creation Modal */}
       <AnimatePresence>
+        {showPhonePrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-5 left-5 right-5 sm:left-auto sm:right-24 z-40 max-w-sm border border-zinc-800 bg-[#050505] p-4 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <p className="text-sm font-mono text-white">Want a text when your next report's ready?</p>
+              <button onClick={handleSkipPhonePrompt} className="text-zinc-500 hover:text-white shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="tel"
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value)}
+                placeholder="+1 555 123 4567"
+                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 focus:border-[#CCFF00] text-sm font-mono text-white px-3 py-2 outline-none placeholder:text-zinc-600"
+              />
+              <button
+                onClick={handleSavePhone}
+                disabled={savingPhone}
+                className="bg-[#CCFF00] hover:bg-[#E6FF00] disabled:opacity-50 text-black font-mono font-bold text-[10px] uppercase tracking-widest px-4 transition-colors"
+              >
+                {savingPhone ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+              </button>
+            </div>
+            <button onClick={handleSkipPhonePrompt} className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 uppercase tracking-widest mt-2">
+              Skip
+            </button>
+          </motion.div>
+        )}
+
         {showAccountModal && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -2183,6 +2279,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      <FeedbackWidget />
     </div>
   );
 }
