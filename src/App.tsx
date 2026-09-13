@@ -993,7 +993,7 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-white text-neutral-700 selection:bg-[#7CB800] selection:text-white overflow-x-hidden [font-family:-apple-system,BlinkMacSystemFont,'Segoe_UI',Inter,Roboto,sans-serif]">
+      <div className="min-h-screen bg-white text-neutral-700 font-sans selection:bg-[#7CB800] selection:text-white overflow-x-hidden">
         {/* Navigation */}
         <nav className="sticky top-0 left-0 w-full border-b border-neutral-200 bg-white z-50">
           <div className="max-w-6xl mx-auto px-6 min-h-16 py-3 flex flex-wrap items-center justify-between gap-y-2">
