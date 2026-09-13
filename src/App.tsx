@@ -995,7 +995,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-white text-neutral-700 selection:bg-[#7CB800] selection:text-white overflow-x-hidden [font-family:-apple-system,BlinkMacSystemFont,'Segoe_UI',Inter,Roboto,sans-serif]">
         {/* Navigation */}
-        <nav className="sticky top-0 left-0 w-full border-b border-neutral-200 bg-white/90 backdrop-saturate-150 z-50">
+        <nav className="sticky top-0 left-0 w-full border-b border-neutral-200 bg-white z-50">
           <div className="max-w-6xl mx-auto px-6 min-h-16 py-3 flex flex-wrap items-center justify-between gap-y-2">
             <button
               onClick={() => { window.location.href = '/'; }}
@@ -1110,9 +1110,9 @@ export default function App() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Advantage 1 */}
-              <div className="bg-white rounded-2xl p-8 border border-neutral-200 hover:shadow-lg hover:border-neutral-300 transition-all">
-                <div className="w-11 h-11 rounded-full bg-[#7CB800]/10 flex items-center justify-center mb-6">
-                  <Zap className="w-5 h-5 text-[#7CB800]" />
+              <div className="bg-white rounded-2xl p-8 border border-neutral-200 hover:border-neutral-900 transition-colors">
+                <div className="w-11 h-11 rounded-full bg-neutral-100 flex items-center justify-center mb-6">
+                  <Zap className="w-5 h-5 text-neutral-700" />
                 </div>
                 <h3 className="[font-family:inherit] text-lg font-semibold text-neutral-900 leading-snug mb-2">Algorithmic precision</h3>
                 <p className="text-neutral-500 text-sm leading-relaxed">
@@ -1121,9 +1121,9 @@ export default function App() {
               </div>
 
               {/* Advantage 2 */}
-              <div className="bg-white rounded-2xl p-8 border border-neutral-200 hover:shadow-lg hover:border-neutral-300 transition-all">
-                <div className="w-11 h-11 rounded-full bg-[#7CB800]/10 flex items-center justify-center mb-6">
-                  <Globe className="w-5 h-5 text-[#7CB800]" />
+              <div className="bg-white rounded-2xl p-8 border border-neutral-200 hover:border-neutral-900 transition-colors">
+                <div className="w-11 h-11 rounded-full bg-neutral-100 flex items-center justify-center mb-6">
+                  <Globe className="w-5 h-5 text-neutral-700" />
                 </div>
                 <h3 className="[font-family:inherit] text-lg font-semibold text-neutral-900 leading-snug mb-2">Global pre-clearance</h3>
                 <p className="text-neutral-500 text-sm leading-relaxed">
@@ -1132,9 +1132,9 @@ export default function App() {
               </div>
 
               {/* Advantage 3 */}
-              <div className="bg-white rounded-2xl p-8 border border-neutral-200 hover:shadow-lg hover:border-neutral-300 transition-all">
-                <div className="w-11 h-11 rounded-full bg-[#7CB800]/10 flex items-center justify-center mb-6">
-                  <Activity className="w-5 h-5 text-[#7CB800]" />
+              <div className="bg-white rounded-2xl p-8 border border-neutral-200 hover:border-neutral-900 transition-colors">
+                <div className="w-11 h-11 rounded-full bg-neutral-100 flex items-center justify-center mb-6">
+                  <Activity className="w-5 h-5 text-neutral-700" />
                 </div>
                 <h3 className="[font-family:inherit] text-lg font-semibold text-neutral-900 leading-snug mb-2">Infinite iteration</h3>
                 <p className="text-neutral-500 text-sm leading-relaxed">
