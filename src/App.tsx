@@ -995,7 +995,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-black text-zinc-300 font-sans selection:bg-white selection:text-black overflow-x-hidden">
         {/* Navigation */}
-        <nav className="fixed top-0 left-0 w-full border-b border-zinc-900 bg-black/80 backdrop-blur-md z-50">
+        <nav className="fixed top-0 left-0 w-full border-b border-zinc-900 bg-black/95 z-50">
           <div className="max-w-7xl mx-auto px-6 min-h-16 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
@@ -1232,7 +1232,7 @@ export default function App() {
       )}
 
       {/* Mobile Header */}
-      <div style={{ top: fixedTopOffset }} className="md:hidden flex items-center justify-between p-4 border-b border-zinc-900 bg-[#050505]/95 backdrop-blur-md sticky z-30">
+      <div style={{ top: fixedTopOffset }} className="md:hidden flex items-center justify-between p-4 border-b border-zinc-900 bg-[#050505] sticky z-30">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 bg-[#CCFF00] flex items-center justify-center text-black flex-shrink-0">
             <Terminal className="w-5 h-5" />
@@ -1250,7 +1250,7 @@ export default function App() {
       </div>
 
       {/* Sidebar */}
-      <div style={{ top: fixedTopOffset }} className={`w-full md:w-80 border-b md:border-b-0 md:border-r border-zinc-900 bg-[#050505]/95 backdrop-blur-md flex-col h-[calc(100vh-73px)] md:h-screen sticky top-[73px] md:top-0 z-20 ${isMobileMenuOpen ? 'flex fixed inset-x-0' : 'hidden md:flex'}`}>
+      <div style={{ top: fixedTopOffset }} className={`w-full md:w-80 border-b md:border-b-0 md:border-r border-zinc-900 bg-[#050505] flex-col h-[calc(100vh-73px)] md:h-screen sticky top-[73px] md:top-0 z-20 ${isMobileMenuOpen ? 'flex fixed inset-x-0' : 'hidden md:flex'}`}>
         <div className="hidden md:flex p-6 border-b border-zinc-900 items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-8 h-8 bg-[#CCFF00] flex items-center justify-center text-black flex-shrink-0">
