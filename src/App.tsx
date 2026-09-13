@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo, MouseEvent } from 'react';
+import { useState, useEffect, useMemo, useRef, MouseEvent } from 'react';
 import Markdown from 'react-markdown';
 import { Terminal, Zap, Compass, Activity, Loader2, LogIn, LogOut, CheckCircle, ShieldCheck, CreditCard, History, ChevronRight, Fingerprint, Menu, X, Globe, FileText, Sparkles, Timer, Handshake, MousePointerClick, Volume2, RefreshCw, Download, TrendingUp, Star, BookOpen, Share2, Users, ChevronDown, ChevronUp, Clock, Target } from 'lucide-react';
 import { auth, db, loginWithGoogle, loginAsGuest, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, addDoc, onSnapshot, query, where, orderBy, serverTimestamp, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { Toaster, toast } from 'sonner';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, MotionConfig } from 'motion/react';
 import { parseNames, parseEvolvedNames, parseNamePool, shouldShowPaywall } from './utils/parseNames';
 import { scoreNameFn, getSoundProfile } from './utils/nameScoring';
 import { FeedbackWidget } from './components/FeedbackWidget';
@@ -78,7 +78,8 @@ export default function App() {
   // sessionStorage id — so guest runs persist to Firestore and survive a
   // browser restart (until they clear site data), same as logged-in accounts.
   const isGuest = !!user?.isAnonymous;
-  const fixedTopOffset = isGuest ? 48 : 0;
+  const guestBannerRef = useRef<HTMLDivElement>(null);
+  const [fixedTopOffset, setFixedTopOffset] = useState(0);
   const [userPhone, setUserPhone] = useState<string | null>(null);
   const [showPhonePrompt, setShowPhonePrompt] = useState(false);
   const [phoneInput, setPhoneInput] = useState('');
@@ -93,6 +94,7 @@ export default function App() {
   
   const [loading, setLoading] = useState(false);
   const [generationStage, setGenerationStage] = useState<'idle' | 'screening' | 'writing'>('idle');
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [response, setResponse] = useState('');
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   
@@ -311,6 +313,29 @@ export default function App() {
       setGeneratingAlternatives(false);
     }
   };
+
+  // The guest banner wraps to 2 lines on narrow screens, so its real height
+  // varies — measure it instead of assuming a fixed 48px, otherwise the
+  // sticky header/sidebar below it (pinned to that guessed offset) ends up
+  // sitting underneath the banner and gets visually clipped by it.
+  useEffect(() => {
+    if (!isGuest || !guestBannerRef.current) { setFixedTopOffset(0); return; }
+    const el = guestBannerRef.current;
+    const update = () => setFixedTopOffset(el.offsetHeight);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isGuest]);
+
+  // Visible elapsed-time counter while generating — generation can legitimately
+  // take 20-180s+ (Gemini latency + retries), and a silent spinner is exactly
+  // what made a slow-but-working request read as "hung" before.
+  useEffect(() => {
+    if (!loading) { setElapsedSeconds(0); return; }
+    const interval = setInterval(() => setElapsedSeconds(s => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, [loading]);
 
   // Soft, skippable prompt to capture a phone number once a report is ready —
   // never at signup. Only for real accounts (name+email already exist via
@@ -1140,14 +1165,15 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen bg-black font-sans flex flex-col md:flex-row relative selection:bg-[#CCFF00] selection:text-black ${isGuest ? 'pt-12' : ''}`}>
+    <MotionConfig reducedMotion="user">
+    <div style={{ paddingTop: fixedTopOffset }} className="min-h-screen bg-black font-sans flex flex-col md:flex-row relative selection:bg-[#CCFF00] selection:text-black">
       <Toaster position="top-right" />
       <div className="fixed inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none z-0"></div>
       <div className="fixed top-0 right-0 w-[500px] h-[500px] bg-[#CCFF00] opacity-[0.04] blur-[160px] rounded-full pointer-events-none z-0"></div>
 
       {/* Guest mode banner */}
       {isGuest && (
-        <div className="fixed top-0 left-0 w-full z-50 bg-zinc-900 border-b border-zinc-700 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div ref={guestBannerRef} className="fixed top-0 left-0 w-full z-50 bg-zinc-900 border-b border-zinc-700 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <span className="text-xs font-mono text-zinc-400 uppercase tracking-widest min-w-0 truncate">Guest session — saved to this browser only</span>
           <button
             type="button"
@@ -1167,7 +1193,12 @@ export default function App() {
           </div>
           <span className="font-display font-bold text-white tracking-[0.1em] text-base md:text-lg whitespace-nowrap">NamingStorm</span>
         </div>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-zinc-400 hover:text-white flex-shrink-0">
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={isMobileMenuOpen}
+          className="text-zinc-400 hover:text-white flex-shrink-0 p-2.5 -m-2.5"
+        >
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>
@@ -1239,7 +1270,11 @@ export default function App() {
                 {favorites.map(name => (
                   <div key={name} className="flex items-center gap-1 bg-[#CCFF00]/5 border border-[#CCFF00]/20 px-2 py-1 group">
                     <span className="text-xs font-display font-bold text-[#CCFF00] tracking-wide">{name}</span>
-                    <button onClick={() => toggleFavorite(name)} className="text-zinc-600 hover:text-red-400 transition-colors ml-1 opacity-0 group-hover:opacity-100">
+                    <button
+                      onClick={() => toggleFavorite(name)}
+                      aria-label={`Remove ${name} from shortlist`}
+                      className="text-zinc-600 hover:text-red-400 transition-colors ml-1 opacity-60 group-hover:opacity-100 p-1.5 -m-1.5"
+                    >
                       <X className="w-2.5 h-2.5" />
                     </button>
                   </div>
@@ -1320,7 +1355,7 @@ export default function App() {
             
             {/* Left Panel: Controls */}
             <div className="xl:col-span-4 space-y-6">
-              <div className="border border-zinc-800/60 bg-[#050505]/80 backdrop-blur-sm p-6 lg:p-8 shadow-2xl relative">
+              <div className="border border-zinc-800/60 bg-[#050505]/80 backdrop-blur-sm p-6 lg:p-8 relative">
                 {/* Tech accents */}
                 <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[#CCFF00]/30 to-transparent"></div>
                 
@@ -1356,7 +1391,7 @@ export default function App() {
                                 setAdditionalContext(idea.context || '');
                               }
                             }}
-                            className={`text-[10px] font-mono px-2 py-1 transition-colors border ${
+                            className={`text-[10px] font-mono px-2 py-1 active:scale-95 transition-all border ${
                               selectedInspiration === idea.label
                                 ? 'bg-[#CCFF00]/20 border-[#CCFF00] text-[#CCFF00]'
                                 : 'text-zinc-300 bg-zinc-900/50 border-zinc-700 hover:border-[#CCFF00]/50 hover:text-[#CCFF00]'
@@ -1460,12 +1495,12 @@ export default function App() {
                   <button 
                     onClick={handleGenerate}
                     disabled={loading || !productDescription || !targetAudience || !positioningStatement}
-                    className="w-full mt-8 bg-[#CCFF00] hover:bg-[#E6FF00] text-black font-display font-bold tracking-[0.15em] py-4 px-4 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(204,255,0,0.15)] hover:shadow-[0_0_25px_rgba(204,255,0,0.3)] uppercase text-sm"
+                    className="w-full mt-8 bg-[#CCFF00] hover:bg-[#E6FF00] active:scale-[0.98] text-black font-display font-bold tracking-[0.15em] py-4 px-4 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 shadow-[0_0_15px_rgba(204,255,0,0.15)] hover:shadow-[0_0_25px_rgba(204,255,0,0.3)] uppercase text-sm"
                   >
                     {loading ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        {generationStage === 'screening' ? 'Screening For Available Names...' : 'Processing...'}
+                        {generationStage === 'screening' ? 'Screening For Available Names...' : 'Processing...'} ({elapsedSeconds}s)
                       </>
                     ) : (
                       <>
@@ -1479,7 +1514,7 @@ export default function App() {
 
             {/* Right Panel: Results & Monetization */}
             <div className="xl:col-span-8 space-y-8">
-              <div className="border border-zinc-800/60 bg-[#050505]/80 backdrop-blur-sm p-6 lg:p-10 min-h-[600px] shadow-2xl relative">
+              <div className="border border-zinc-800/60 bg-[#050505]/80 backdrop-blur-sm p-6 lg:p-10 min-h-[600px] relative">
                 {/* Corner accents */}
                 <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-[#CCFF00]/50"></div>
                 <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-[#CCFF00]/50"></div>
@@ -1487,13 +1522,30 @@ export default function App() {
                 <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-[#CCFF00]/50"></div>
 
                 {!response && !loading && !apiKeyError ? (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-6 py-32"
                   >
                     <Fingerprint className="w-16 h-16 opacity-20" />
                     <p className="font-mono text-xs uppercase tracking-[0.3em]">Awaiting Input Parameters</p>
+                  </motion.div>
+                ) : !response && loading ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="h-full flex flex-col items-center justify-center text-zinc-400 space-y-4 py-32"
+                  >
+                    <Loader2 className="w-10 h-10 animate-spin text-[#CCFF00]" />
+                    <p className="font-mono text-xs uppercase tracking-[0.3em] text-[#CCFF00]">
+                      {generationStage === 'screening' ? 'Verifying registerable domains…' : 'Writing your report…'}
+                    </p>
+                    <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">{elapsedSeconds}s elapsed</p>
+                    {elapsedSeconds >= 20 && (
+                      <p className="font-mono text-[10px] text-zinc-500 max-w-xs text-center leading-relaxed">
+                        Still working — the AI engine occasionally retries a stalled call, which can take up to 3 minutes total. No need to refresh.
+                      </p>
+                    )}
                   </motion.div>
                 ) : apiKeyError ? (
                   <motion.div 
@@ -1534,13 +1586,13 @@ export default function App() {
                     <div className="no-print flex items-center justify-between mb-6 pb-3 border-b border-zinc-900">
                       <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-[0.2em]">Protocol Output</p>
                       <div className="flex gap-2">
-                        <button onClick={handleGenerate} disabled={loading} className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-600 px-3 py-1.5 transition-colors disabled:opacity-40">
+                        <button onClick={handleGenerate} disabled={loading} className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-zinc-400 hover:text-white active:scale-95 border border-zinc-800 hover:border-zinc-600 px-3 py-1.5 transition-all disabled:opacity-40 disabled:active:scale-100">
                           <RefreshCw className="w-3 h-3" /> Run Again
                         </button>
-                        <button onClick={handleShareReport} className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-zinc-400 hover:text-zinc-200 border border-zinc-800 hover:border-zinc-600 px-3 py-1.5 transition-colors">
+                        <button onClick={handleShareReport} className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-zinc-400 hover:text-zinc-200 active:scale-95 border border-zinc-800 hover:border-zinc-600 px-3 py-1.5 transition-all">
                           <Share2 className="w-3 h-3" /> Share
                         </button>
-                        <button onClick={handleExport} className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-zinc-400 hover:text-[#CCFF00] border border-zinc-800 hover:border-[#CCFF00]/50 px-3 py-1.5 transition-colors">
+                        <button onClick={handleExport} className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-zinc-400 hover:text-[#CCFF00] active:scale-95 border border-zinc-800 hover:border-[#CCFF00]/50 px-3 py-1.5 transition-all">
                           <Download className="w-3 h-3" /> Export
                         </button>
                       </div>
@@ -1564,7 +1616,7 @@ export default function App() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="border border-zinc-800/60 bg-[#050505]/80 backdrop-blur-sm p-5 lg:p-6 shadow-2xl"
+                    className="border border-zinc-800/60 bg-[#050505]/80 backdrop-blur-sm p-5 lg:p-6"
                   >
                     <div className="flex items-center gap-2 mb-5">
                       <TrendingUp className="w-3 h-3 text-[#CCFF00]" />
@@ -1668,28 +1720,28 @@ export default function App() {
                               <button
                                 onClick={() => toggleFavorite(name)}
                                 title={favorites.includes(name) ? 'Remove from shortlist' : 'Add to shortlist'}
-                                className={`flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest border px-2 py-1 transition-colors ${favorites.includes(name) ? 'border-[#CCFF00]/50 text-[#CCFF00] bg-[#CCFF00]/10' : 'border-zinc-800 text-zinc-500 hover:text-[#CCFF00] hover:border-[#CCFF00]/30'}`}
+                                className={`flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest border px-2 py-1 active:scale-95 transition-all ${favorites.includes(name) ? 'border-[#CCFF00]/50 text-[#CCFF00] bg-[#CCFF00]/10' : 'border-zinc-800 text-zinc-500 hover:text-[#CCFF00] hover:border-[#CCFF00]/30'}`}
                               >
                                 <Star className={`w-3 h-3 ${favorites.includes(name) ? 'fill-[#CCFF00]' : ''}`} />
                               </button>
                               <button
                                 onClick={() => speakName(name)}
                                 title="Hear pronunciation"
-                                className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-zinc-500 hover:text-white border border-zinc-800 hover:border-zinc-600 px-2 py-1 transition-colors"
+                                className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-zinc-500 hover:text-white active:scale-95 border border-zinc-800 hover:border-zinc-600 px-2 py-1 transition-all"
                               >
                                 <Volume2 className="w-3 h-3" /> Speak
                               </button>
                               <button
                                 onClick={() => handleEvolve(name)}
                                 disabled={evolveLoading}
-                                className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-zinc-500 hover:text-[#CCFF00] border border-zinc-800 hover:border-[#CCFF00]/40 px-2 py-1 transition-colors disabled:opacity-40"
+                                className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-zinc-500 hover:text-[#CCFF00] active:scale-95 border border-zinc-800 hover:border-[#CCFF00]/40 px-2 py-1 transition-all disabled:opacity-40 disabled:active:scale-100"
                               >
                                 {evolveLoading && evolveTarget === name ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} Evolve
                               </button>
                               <button
                                 onClick={() => handleBrandStory(name)}
                                 disabled={brandStoryLoading}
-                                className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-zinc-500 hover:text-zinc-200 border border-zinc-800 hover:border-zinc-600 px-2 py-1 transition-colors disabled:opacity-40"
+                                className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-zinc-500 hover:text-zinc-200 active:scale-95 border border-zinc-800 hover:border-zinc-600 px-2 py-1 transition-all disabled:opacity-40 disabled:active:scale-100"
                               >
                                 {brandStoryLoading && brandStoryTarget === name ? <Loader2 className="w-3 h-3 animate-spin" /> : <BookOpen className="w-3 h-3" />} Story
                               </button>
@@ -1720,7 +1772,7 @@ export default function App() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="border border-[#CCFF00]/30 bg-[#050505]/80 backdrop-blur-sm p-5 lg:p-6 shadow-2xl"
+                    className="border border-[#CCFF00]/30 bg-[#050505]/80 backdrop-blur-sm p-5 lg:p-6"
                   >
                     <div className="flex items-center gap-2 mb-4">
                       <Sparkles className="w-3 h-3 text-[#CCFF00]" />
@@ -1827,7 +1879,7 @@ export default function App() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="border border-zinc-700/60 bg-[#050505]/80 backdrop-blur-sm p-5 lg:p-6 shadow-2xl"
+                    className="border border-zinc-700/60 bg-[#050505]/80 backdrop-blur-sm p-5 lg:p-6"
                   >
                     <div className="flex items-center justify-between mb-5">
                       <div className="flex items-center gap-2">
@@ -1860,7 +1912,7 @@ export default function App() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="border border-zinc-700/60 bg-[#050505]/80 backdrop-blur-sm p-5 lg:p-6 shadow-2xl"
+                    className="border border-zinc-700/60 bg-[#050505]/80 backdrop-blur-sm p-5 lg:p-6"
                   >
                     <div className="flex items-center justify-between mb-5">
                       <div className="flex items-center gap-2">
@@ -1913,7 +1965,7 @@ export default function App() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    className="border border-[#CCFF00]/30 bg-[#CCFF00]/[0.02] p-6 lg:p-10 shadow-2xl relative overflow-hidden"
+                    className="border border-[#CCFF00]/30 bg-[#CCFF00]/[0.02] p-6 lg:p-10 relative overflow-hidden"
                   >
                     <div className="absolute top-0 left-0 w-1 h-full bg-[#CCFF00]"></div>
                     <div className="absolute top-0 right-0 w-32 h-32 bg-[#CCFF00]/5 blur-3xl rounded-full pointer-events-none"></div>
@@ -2188,7 +2240,7 @@ export default function App() {
           >
             <div className="flex items-start justify-between gap-3 mb-2">
               <p className="text-sm font-mono text-white">Want a text when your next report's ready?</p>
-              <button onClick={handleSkipPhonePrompt} className="text-zinc-500 hover:text-white shrink-0">
+              <button onClick={handleSkipPhonePrompt} aria-label="Dismiss" className="text-zinc-500 hover:text-white shrink-0 p-4 -m-4">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -2281,5 +2333,6 @@ export default function App() {
 
       <FeedbackWidget />
     </div>
+    </MotionConfig>
   );
 }

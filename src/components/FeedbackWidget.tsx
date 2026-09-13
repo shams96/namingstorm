@@ -106,7 +106,7 @@ export function FeedbackWidget() {
           <div className="w-full max-w-sm border border-zinc-800 bg-[#050505] p-5">
             <div className="flex items-center justify-between mb-4">
               <p className="text-[10px] font-mono text-[#CCFF00] uppercase tracking-[0.2em]">Report an Issue</p>
-              <button onClick={() => { setOpen(false); reset(); }} className="text-zinc-500 hover:text-white">
+              <button onClick={() => { setOpen(false); reset(); }} aria-label="Close" className="text-zinc-500 hover:text-white p-4 -m-4">
                 <X className="w-4 h-4" />
               </button>
             </div>
