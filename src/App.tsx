@@ -1073,7 +1073,7 @@ export default function App() {
               <span className="text-xs font-medium text-neutral-500">Version 3.1.4 · Live</span>
             </div>
 
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-semibold text-neutral-900 leading-[1.05] tracking-tight mb-6">
+            <h1 className="[font-family:inherit] text-5xl md:text-6xl lg:text-7xl font-semibold text-neutral-900 leading-tight tracking-tight mb-6">
               The AI naming engine<br/>
               <span className="text-[#7CB800]">for founders who ship.</span>
             </h1>
@@ -1104,7 +1104,7 @@ export default function App() {
         <section className="py-20 px-6 bg-neutral-50">
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-semibold text-neutral-900 tracking-tight mb-4">Built to replace the whiteboard session</h2>
+              <h2 className="[font-family:inherit] text-3xl md:text-4xl font-semibold text-neutral-900 leading-tight tracking-tight mb-4">Built to replace the whiteboard session</h2>
               <p className="text-neutral-500 max-w-xl mx-auto">Human brainstorming is constrained by cognitive bias and limited linguistic reach. NamingStorm runs a structured naming methodology instead.</p>
             </div>
 
@@ -1114,7 +1114,7 @@ export default function App() {
                 <div className="w-11 h-11 rounded-full bg-[#7CB800]/10 flex items-center justify-center mb-6">
                   <Zap className="w-5 h-5 text-[#7CB800]" />
                 </div>
-                <h3 className="text-lg font-semibold text-neutral-900 mb-2">Algorithmic precision</h3>
+                <h3 className="[font-family:inherit] text-lg font-semibold text-neutral-900 leading-snug mb-2">Algorithmic precision</h3>
                 <p className="text-neutral-500 text-sm leading-relaxed">
                   We don't rely on "eureka" moments. Names are engineered using linguistic frameworks and phonetic scoring to guarantee memorability.
                 </p>
@@ -1125,7 +1125,7 @@ export default function App() {
                 <div className="w-11 h-11 rounded-full bg-[#7CB800]/10 flex items-center justify-center mb-6">
                   <Globe className="w-5 h-5 text-[#7CB800]" />
                 </div>
-                <h3 className="text-lg font-semibold text-neutral-900 mb-2">Global pre-clearance</h3>
+                <h3 className="[font-family:inherit] text-lg font-semibold text-neutral-900 leading-snug mb-2">Global pre-clearance</h3>
                 <p className="text-neutral-500 text-sm leading-relaxed">
                   Every generated name is cross-referenced against trademark databases and domain registries, cutting legal friction before it starts.
                 </p>
@@ -1136,7 +1136,7 @@ export default function App() {
                 <div className="w-11 h-11 rounded-full bg-[#7CB800]/10 flex items-center justify-center mb-6">
                   <Activity className="w-5 h-5 text-[#7CB800]" />
                 </div>
-                <h3 className="text-lg font-semibold text-neutral-900 mb-2">Infinite iteration</h3>
+                <h3 className="[font-family:inherit] text-lg font-semibold text-neutral-900 leading-snug mb-2">Infinite iteration</h3>
                 <p className="text-neutral-500 text-sm leading-relaxed">
                   Traditional agencies provide 5-10 options after weeks of work. Our engine provides hundreds of targeted options in seconds.
                 </p>
@@ -1149,7 +1149,7 @@ export default function App() {
         <section className="py-20 px-6 bg-white">
           <div className="max-w-3xl mx-auto text-center">
             <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-4">About NamingStorm</p>
-            <h2 className="text-3xl md:text-4xl font-semibold text-neutral-900 tracking-tight mb-6">Built for founders, powered by the engine.</h2>
+            <h2 className="[font-family:inherit] text-3xl md:text-4xl font-semibold text-neutral-900 leading-tight tracking-tight mb-6">Built for founders, powered by the engine.</h2>
             <p className="text-neutral-500 max-w-2xl mx-auto leading-relaxed">
               NamingStorm delivers AI-powered brand names, domain signals, and storytelling in seconds. It's powered by the NamingStorm Engine, a naming architecture that combines phonetic scoring, semantic indexing, and trademark-aware strategy.
             </p>
@@ -1159,7 +1159,7 @@ export default function App() {
         {/* Footer CTA */}
         <section className="py-24 px-6 bg-neutral-50 text-center">
           <div className="max-w-2xl mx-auto">
-            <h2 className="text-3xl md:text-5xl font-semibold text-neutral-900 tracking-tight mb-6">Ready when you are.</h2>
+            <h2 className="[font-family:inherit] text-3xl md:text-5xl font-semibold text-neutral-900 leading-tight tracking-tight mb-6">Ready when you are.</h2>
             <p className="text-neutral-500 mb-10">Secure your category-defining brand name today.</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
