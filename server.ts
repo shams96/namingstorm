@@ -260,6 +260,18 @@ const generateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Lighter limiter for domain/trademark lookups — these are unauthenticated
+// (guests can check availability before signing up) and call metered
+// third-party APIs (RDAP, MarkerAPI's 1K/month free tier), so they still
+// need a cap to prevent quota exhaustion or upstream IP bans from abuse.
+const lookupLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'Too many requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Auth middleware — accepts Firebase ID token or a guest session ID
 const verifyAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   // Guest mode: client sends a local UUID, no Firebase needed
@@ -301,6 +313,20 @@ export async function buildApp(): Promise<express.Application> {
   const app = express();
 
   app.set('trust proxy', 1);
+
+  // Baseline security headers on every response. CSP is intentionally omitted
+  // for now — this app's client makes direct requests to Google's Firebase
+  // Auth/Firestore domains and loads Google Fonts, and a CSP tight enough to
+  // matter but wrong in scope would silently break sign-in. Ship the
+  // unambiguous, zero-risk headers now; a properly-scoped CSP needs to be
+  // written and tested against the real Firebase domains before enabling.
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+  });
 
   // Stripe webhook MUST be registered before express.json() — needs raw Buffer
   app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -471,7 +497,7 @@ ${hasLockedNames
 
     } catch (error: any) {
       console.error('Generation API error:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = 'Name generation failed. Please try again.';
 
       // If headers haven't been sent, we can send a normal JSON error
       if (!res.headersSent) {
@@ -560,8 +586,7 @@ Execute the Unicorn Protocol's ideation step — 8 candidates per phase, best-fi
       res.json({ text: result.text || '' });
     } catch (error: any) {
       console.error('Generate-pool API error:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      res.status(500).json({ error: errorMessage });
+      res.status(500).json({ error: 'Name generation failed. Please try again.' });
     }
   });
 
@@ -619,7 +644,8 @@ Rules: each variant must be 1-3 syllables, pronounceable on first attempt, prese
       res.write(`data: [DONE]\n\n`);
       res.end();
     } catch (error: any) {
-      const msg = error instanceof Error ? error.message : String(error);
+      console.error('Evolve API error:', error);
+      const msg = 'Name evolution failed. Please try again.';
       if (!res.headersSent) res.status(500).json({ error: msg });
       else { res.write(`data: ${JSON.stringify({ error: msg })}\n\n`); res.end(); }
     }
@@ -666,7 +692,8 @@ Write exactly three things in this format — no extra commentary:
       res.write(`data: [DONE]\n\n`);
       res.end();
     } catch (error: any) {
-      const msg = error instanceof Error ? error.message : String(error);
+      console.error('Brand story API error:', error);
+      const msg = 'Brand story generation failed. Please try again.';
       if (!res.headersSent) res.status(500).json({ error: msg });
       else { res.write(`data: ${JSON.stringify({ error: msg })}\n\n`); res.end(); }
     }
@@ -704,7 +731,7 @@ Write exactly three things in this format — no extra commentary:
     return null;
   }
 
-  app.get('/api/check-domain', async (req, res) => {
+  app.get('/api/check-domain', lookupLimiter, async (req, res) => {
     const { name } = req.query as { name: string };
     if (!name) return res.status(400).json({ error: 'name required' });
     const clean = (name as string).toLowerCase().replace(/[^a-z0-9-]/g, '');
@@ -767,7 +794,7 @@ Write exactly three things in this format — no extra commentary:
     return [];
   }
 
-  app.get('/api/check-trademark', async (req, res) => {
+  app.get('/api/check-trademark', lookupLimiter, async (req, res) => {
     const { name } = req.query as { name: string };
     if (!name) return res.status(400).json({ error: 'name required' });
     const clean = (name as string).trim();
@@ -860,7 +887,7 @@ Write exactly three things in this format — no extra commentary:
       res.json({ url: session.url });
     } catch (e: any) {
       console.error('Checkout error:', e);
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: 'Could not start checkout. Please try again.' });
     }
   });
 
@@ -879,7 +906,8 @@ Write exactly three things in this format — no extra commentary:
       );
       res.json({ active: result.rows.length > 0, plan: result.rows.length > 0 ? 'pro' : null });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      console.error('Stripe status error:', e);
+      res.status(500).json({ error: 'Could not check subscription status.' });
     }
   });
 
@@ -900,7 +928,8 @@ Write exactly three things in this format — no extra commentary:
       });
       res.json({ url: portalSession.url });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      console.error('Stripe portal error:', e);
+      res.status(500).json({ error: 'Could not open billing portal. Please try again.' });
     }
   });
 
