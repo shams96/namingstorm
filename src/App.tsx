@@ -85,10 +85,12 @@ export default function App() {
   const [phoneInput, setPhoneInput] = useState('');
   const [savingPhone, setSavingPhone] = useState(false);
   
-  const [productDescription, setProductDescription] = useState('');
-  const [positioningStatement, setPositioningStatement] = useState('');
-  const [targetAudience, setTargetAudience] = useState('');
-  const [additionalContext, setAdditionalContext] = useState('');
+  // Draft fields restore from a prior session (sessionStorage) so navigating
+  // away and back — or an accidental reload — doesn't erase unfinished input.
+  const [productDescription, setProductDescription] = useState(() => sessionStorage.getItem('sl_draft_description') || '');
+  const [positioningStatement, setPositioningStatement] = useState(() => sessionStorage.getItem('sl_draft_positioning') || '');
+  const [targetAudience, setTargetAudience] = useState(() => sessionStorage.getItem('sl_draft_audience') || '');
+  const [additionalContext, setAdditionalContext] = useState(() => sessionStorage.getItem('sl_draft_context') || '');
   const [thinkingLevel, setThinkingLevel] = useState(50);
   const [selectedInspiration, setSelectedInspiration] = useState<string | null>(null);
   
@@ -128,7 +130,7 @@ export default function App() {
   const [gridDomainVariants, setGridDomainVariants] = useState<Record<string, { domain: string; technique: string } | null>>({});
 
   // Competitors input
-  const [competitors, setCompetitors] = useState('');
+  const [competitors, setCompetitors] = useState(() => sessionStorage.getItem('sl_draft_competitors') || '');
   const [showCompetitors, setShowCompetitors] = useState(false);
 
   // Favorites (localStorage)
@@ -512,6 +514,24 @@ export default function App() {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
+
+  // Autosave the input form as a draft so a reload, an accidental back
+  // navigation, or the browser closing doesn't erase unfinished work.
+  useEffect(() => {
+    sessionStorage.setItem('sl_draft_description', productDescription);
+  }, [productDescription]);
+  useEffect(() => {
+    sessionStorage.setItem('sl_draft_positioning', positioningStatement);
+  }, [positioningStatement]);
+  useEffect(() => {
+    sessionStorage.setItem('sl_draft_audience', targetAudience);
+  }, [targetAudience]);
+  useEffect(() => {
+    sessionStorage.setItem('sl_draft_context', additionalContext);
+  }, [additionalContext]);
+  useEffect(() => {
+    sessionStorage.setItem('sl_draft_competitors', competitors);
+  }, [competitors]);
 
   // Check subscription status for logged-in users
   useEffect(() => {
@@ -940,6 +960,45 @@ export default function App() {
     }
   };
 
+  // Shared links (see handleShareReport below) carry the report inputs as
+  // query params. Opening one should show the actual report the sender saw,
+  // not an empty form the recipient has to re-fill — restore the fields and
+  // regenerate as soon as auth is ready, once, then clean the URL.
+  const sharedLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (sharedLinkHandledRef.current || !isAuthReady || !user) return;
+    const params = new URLSearchParams(window.location.search);
+    const d = params.get('d');
+    if (!d) return;
+    sharedLinkHandledRef.current = true;
+    setProductDescription(d);
+    setPositioningStatement(params.get('p') || '');
+    setTargetAudience(params.get('a') || '');
+    setAdditionalContext(params.get('c') || '');
+    window.history.replaceState({}, '', window.location.pathname);
+  }, [isAuthReady, user]);
+
+  useEffect(() => {
+    if (!sharedLinkHandledRef.current) return;
+    if (!productDescription || !targetAudience) return;
+    sharedLinkHandledRef.current = false;
+    handleGenerate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productDescription, targetAudience]);
+
+  // Quick-action overlays (paywall, account, phone prompt) behave as bottom
+  // sheets on mobile: anchored to the bottom edge, draggable, and dismissed
+  // by swiping down past a distance/velocity threshold — same gesture a user
+  // already expects from every native bottom sheet.
+  const makeSheetDragProps = (onDismiss: () => void) => ({
+    drag: 'y' as const,
+    dragConstraints: { top: 0 },
+    dragElastic: { top: 0, bottom: 0.6 },
+    onDragEnd: (_e: unknown, info: { offset: { y: number }; velocity: { y: number } }) => {
+      if (info.offset.y > 100 || info.velocity.y > 500) onDismiss();
+    },
+  });
+
   const toggleFavorite = (name: string) => {
     setFavorites(prev => {
       const next = prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name];
@@ -951,6 +1010,7 @@ export default function App() {
   const handleShareReport = () => {
     const params = new URLSearchParams();
     if (productDescription) params.set('d', productDescription);
+    if (positioningStatement) params.set('p', positioningStatement);
     if (targetAudience) params.set('a', targetAudience);
     if (additionalContext) params.set('c', additionalContext);
     const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
@@ -2175,15 +2235,18 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/95 backdrop-blur-sm"
           >
             <motion.div
-              initial={{ opacity: 0, y: 24 }}
+              {...makeSheetDragProps(() => setShowPaywall(false))}
+              initial={{ opacity: 0, y: 60 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 24 }}
+              exit={{ opacity: 0, y: 60 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-2xl"
+              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-black rounded-t-2xl sm:rounded-none border-t sm:border-0 border-zinc-800 p-5 sm:p-0 touch-pan-y"
             >
+              {/* Drag handle (mobile sheet only) */}
+              <div className="sm:hidden w-10 h-1 bg-zinc-700 rounded-full mx-auto mb-5" />
               {/* Header */}
               <div className="text-center mb-8">
                 <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-[0.3em] mb-3">Protocol Access Required</p>
@@ -2280,11 +2343,13 @@ export default function App() {
       <AnimatePresence>
         {showPhonePrompt && (
           <motion.div
+            {...makeSheetDragProps(handleSkipPhonePrompt)}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-5 left-5 right-5 sm:left-auto sm:right-24 z-40 max-w-sm border border-zinc-800 bg-[#050505] p-4 shadow-2xl"
+            className="fixed bottom-0 left-0 right-0 sm:bottom-5 sm:left-auto sm:right-24 z-40 sm:max-w-sm border-t sm:border border-zinc-800 bg-[#050505] p-4 pb-6 sm:pb-4 shadow-2xl touch-pan-y"
           >
+            <div className="sm:hidden w-10 h-1 bg-zinc-700 rounded-full mx-auto mb-3" />
             <div className="flex items-start justify-between gap-3 mb-2">
               <p className="text-sm font-mono text-white">Want a text when your next report's ready?</p>
               <button onClick={handleSkipPhonePrompt} aria-label="Dismiss" className="text-zinc-500 hover:text-white shrink-0 p-4 -m-4">
@@ -2318,15 +2383,17 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/95 backdrop-blur-sm"
           >
             <motion.div
-              initial={{ opacity: 0, y: 24 }}
+              {...makeSheetDragProps(() => setShowAccountModal(false))}
+              initial={{ opacity: 0, y: 60 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 24 }}
+              exit={{ opacity: 0, y: 60 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-md"
+              className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-black rounded-t-2xl sm:rounded-none border-t sm:border-0 border-zinc-800 p-5 sm:p-0 touch-pan-y"
             >
+              <div className="sm:hidden w-10 h-1 bg-zinc-700 rounded-full mx-auto mb-5" />
               <div className="text-center mb-8">
                 <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-[0.3em] mb-3">Create Account</p>
                 <h2 className="text-2xl md:text-3xl font-display font-bold text-white tracking-tight mb-4">
