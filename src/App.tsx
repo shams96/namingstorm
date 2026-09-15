@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, MouseEvent } from 'react';
 import Markdown from 'react-markdown';
-import { Terminal, Zap, Compass, Activity, Loader2, LogIn, LogOut, CheckCircle, ShieldCheck, CreditCard, History, ChevronRight, Fingerprint, Menu, X, Globe, FileText, Sparkles, Timer, Handshake, MousePointerClick, Volume2, RefreshCw, Download, TrendingUp, Star, BookOpen, Share2, Users, ChevronDown, ChevronUp, Clock, Target } from 'lucide-react';
+import { Terminal, Zap, Compass, Activity, Loader2, LogIn, LogOut, CheckCircle, ShieldCheck, CreditCard, History, ChevronRight, Fingerprint, Menu, X, Globe, FileText, Sparkles, Timer, Handshake, MousePointerClick, Volume2, RefreshCw, Download, TrendingUp, Star, BookOpen, Share2, Users, ChevronDown, ChevronUp, Clock, Target, MessageSquare } from 'lucide-react';
 import { auth, db, loginWithGoogle, loginAsGuest, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, addDoc, onSnapshot, query, where, orderBy, serverTimestamp, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
@@ -160,6 +160,11 @@ export default function App() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallLoading, setPaywallLoading] = useState<'report' | 'pro' | null>(null);
   const [showAccountModal, setShowAccountModal] = useState(false);
+
+  // Feedback
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackStatus, setFeedbackStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
   const parsedNames = useMemo(() => parseNames(response), [response]);
 
@@ -627,6 +632,26 @@ export default function App() {
     } catch (error) {
       console.error('Account deletion failed:', error);
       toast.error('Could not delete your account. Please try again or contact support.');
+    }
+  };
+
+  const submitFeedback = async () => {
+    const trimmed = feedbackText.trim();
+    if (!trimmed || !user) return;
+    setFeedbackStatus('sending');
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: trimmed }),
+      });
+      if (!res.ok) throw new Error('Feedback request failed');
+      setFeedbackStatus('sent');
+      setFeedbackText('');
+    } catch (error) {
+      console.error('Feedback submission failed:', error);
+      setFeedbackStatus('error');
     }
   };
 
@@ -1239,6 +1264,80 @@ export default function App() {
           </div>
         </section>
 
+        {/* Pricing Section */}
+        <section className="py-20 px-6 bg-white">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="[font-family:inherit] text-3xl md:text-4xl font-semibold text-neutral-900 leading-tight tracking-tight mb-4">Pricing</h2>
+              <p className="text-neutral-500 max-w-xl mx-auto">Start free. Pay only if you need more than {FREE_SEARCH_LIMIT} searches.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Free */}
+              <div className="bg-neutral-50 rounded-2xl p-8 border border-neutral-200">
+                <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-2">Free</p>
+                <div className="flex items-baseline gap-1 mb-1">
+                  <span className="text-4xl font-semibold text-neutral-900">$0</span>
+                </div>
+                <p className="text-sm text-neutral-500 mb-6">{FREE_SEARCH_LIMIT} naming searches, no account required.</p>
+                <ul className="space-y-2 mb-8">
+                  {['3 engineered brand names per search', 'Phonetic + trademark scoring', '.com availability check', 'Brand story generator'].map(f => (
+                    <li key={f} className="flex items-start gap-2 text-sm text-neutral-600">
+                      <CheckCircle className="w-4 h-4 text-[#7CB800] shrink-0 mt-0.5" /> {f}
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" onClick={handleLoginAsGuest} className="w-full border border-neutral-300 text-neutral-700 font-medium rounded-full py-3 hover:border-neutral-400 hover:bg-white transition-colors text-sm">
+                  Try as guest
+                </button>
+              </div>
+
+              {/* Pay as you go */}
+              <div className="bg-neutral-50 rounded-2xl p-8 border border-neutral-200">
+                <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-2">Pay As You Go</p>
+                <div className="flex items-baseline gap-1 mb-1">
+                  <span className="text-4xl font-semibold text-neutral-900">$5</span>
+                  <span className="text-sm text-neutral-500">/ {PAID_SEARCH_PACK_SIZE} searches</span>
+                </div>
+                <p className="text-sm text-neutral-500 mb-6">One-time purchase, no subscription.</p>
+                <ul className="space-y-2 mb-8">
+                  {['Everything in Free', `${PAID_SEARCH_PACK_SIZE} additional searches`, 'Multi-TLD domain checks (.io/.ai/.dev/.app)', 'PDF export'].map(f => (
+                    <li key={f} className="flex items-start gap-2 text-sm text-neutral-600">
+                      <CheckCircle className="w-4 h-4 text-[#7CB800] shrink-0 mt-0.5" /> {f}
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" onClick={handleLoginWithGoogle} className="w-full border border-neutral-300 text-neutral-700 font-medium rounded-full py-3 hover:border-neutral-400 hover:bg-white transition-colors text-sm">
+                  Get started
+                </button>
+              </div>
+
+              {/* Pro */}
+              <div className="bg-neutral-900 rounded-2xl p-8 border border-neutral-900 relative">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#7CB800] text-white text-[10px] font-medium uppercase tracking-widest px-3 py-1 rounded-full">
+                  Most Popular
+                </div>
+                <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-2">Pro</p>
+                <div className="flex items-baseline gap-1 mb-1">
+                  <span className="text-4xl font-semibold text-white">$12</span>
+                  <span className="text-sm text-neutral-400">/ month</span>
+                </div>
+                <p className="text-sm text-neutral-400 mb-6">Unlimited access. Cancel anytime.</p>
+                <ul className="space-y-2 mb-8">
+                  {['Everything in Pay As You Go', 'Unlimited searches / month', 'Unlimited Evolve variants', 'Priority generation'].map(f => (
+                    <li key={f} className="flex items-start gap-2 text-sm text-neutral-300">
+                      <CheckCircle className="w-4 h-4 text-[#7CB800] shrink-0 mt-0.5" /> {f}
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" onClick={handleLoginWithGoogle} className="w-full bg-[#7CB800] text-white font-medium rounded-full py-3 hover:bg-[#6ba300] transition-colors text-sm">
+                  Get started
+                </button>
+              </div>
+            </div>
+            <p className="text-center text-xs text-neutral-400 mt-8">Payments processed securely by Stripe. Purchased through the app after your free searches — not on this page.</p>
+          </div>
+        </section>
+
         {/* About Section */}
         <section className="py-20 px-6 bg-white">
           <div className="max-w-3xl mx-auto text-center">
@@ -1342,6 +1441,13 @@ export default function App() {
                 <Fingerprint className="w-4 h-4" />
               </button>
             )}
+            <button
+              onClick={() => { setFeedbackStatus('idle'); setShowFeedback(true); }}
+              className="text-zinc-400 hover:text-[#CCFF00] transition-colors"
+              title="Send feedback"
+            >
+              <MessageSquare className="w-4 h-4" />
+            </button>
             <button onClick={logout} className="text-zinc-400 hover:text-[#CCFF00] transition-colors" title="Logout">
               <LogOut className="w-4 h-4" />
             </button>
@@ -1459,8 +1565,15 @@ export default function App() {
           </div>
         </div>
         
-        {/* Mobile Logout (bottom of sidebar) */}
-        <div className="md:hidden p-4 border-t border-zinc-900">
+        {/* Mobile Feedback + Logout (bottom of sidebar) */}
+        <div className="md:hidden p-4 border-t border-zinc-900 space-y-2">
+          <button
+            onClick={() => { setFeedbackStatus('idle'); setShowFeedback(true); }}
+            className="w-full flex items-center justify-center gap-2 text-zinc-300 hover:text-white py-3 border border-zinc-800"
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span className="text-xs font-mono uppercase tracking-widest">Feedback</span>
+          </button>
           <button onClick={logout} className="w-full flex items-center justify-center gap-2 text-zinc-300 hover:text-white py-3 border border-zinc-800">
             <LogOut className="w-4 h-4" />
             <span className="text-xs font-mono uppercase tracking-widest">Disconnect</span>
@@ -2369,6 +2482,69 @@ export default function App() {
                   ← Back to report
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Feedback Modal */}
+      <AnimatePresence>
+        {showFeedback && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/95 backdrop-blur-sm"
+          >
+            <motion.div
+              {...makeSheetDragProps(() => setShowFeedback(false))}
+              initial={{ opacity: 0, y: 60 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 60 }}
+              transition={{ duration: 0.3 }}
+              className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-black rounded-t-2xl sm:rounded-none border-t sm:border border-zinc-800 p-6 touch-pan-y"
+            >
+              <div className="sm:hidden w-10 h-1 bg-zinc-700 rounded-full mx-auto mb-5" />
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <h2 className="text-xl font-display font-bold text-white">Send feedback</h2>
+                <button onClick={() => setShowFeedback(false)} aria-label="Close" className="text-zinc-500 hover:text-white shrink-0 p-2 -m-2">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {feedbackStatus === 'sent' ? (
+                <div className="text-center py-6">
+                  <CheckCircle className="w-8 h-8 text-[#CCFF00] mx-auto mb-3" />
+                  <p className="text-sm font-mono text-zinc-300">Thanks — we read every one of these.</p>
+                  <button
+                    onClick={() => setShowFeedback(false)}
+                    className="mt-6 text-[11px] font-mono text-zinc-500 hover:text-zinc-300 uppercase tracking-widest transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm font-mono text-zinc-400 mb-4">Bug, idea, or just a gripe — tell us what's working and what isn't.</p>
+                  <textarea
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    maxLength={4000}
+                    rows={5}
+                    placeholder="What's on your mind?"
+                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-[#CCFF00]/50 text-sm text-zinc-200 font-mono p-3 outline-none resize-none"
+                  />
+                  {feedbackStatus === 'error' && (
+                    <p className="text-xs font-mono text-red-400 mt-2">Couldn't send that — please try again.</p>
+                  )}
+                  <button
+                    onClick={submitFeedback}
+                    disabled={!feedbackText.trim() || feedbackStatus === 'sending'}
+                    className="w-full mt-4 bg-[#CCFF00] hover:bg-[#E6FF00] text-black font-mono font-bold text-[11px] uppercase tracking-widest py-3 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                  >
+                    {feedbackStatus === 'sending' ? <><Loader2 className="w-3 h-3 animate-spin" /> Sending…</> : 'Send Feedback'}
+                  </button>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}
