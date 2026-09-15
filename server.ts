@@ -1,7 +1,6 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
-import { pathToFileURL } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import rateLimit from 'express-rate-limit';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
@@ -1013,6 +1012,4 @@ async function startServer() {
   });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  startServer();
-}
+startServer();
