@@ -840,8 +840,32 @@ Write exactly three things in this format — no extra commentary:
   // ("unknown") — the client then never offers that name at all, even when it
   // was genuinely available. Retry a couple of times on timeout/network error
   // before giving up, so a momentary blip doesn't cost a real available name.
-  async function checkDomainAvailability(clean: string): Promise<boolean | null> {
-    const rdapUrl = `https://rdap.verisign.com/com/v1/domain/${clean}.com`;
+  // Per-TLD RDAP endpoints, verified directly against each registry (2026-09-15):
+  // rdap.verisign.com for .com, Identity Digital's shared RDAP server for .io/.ai
+  // (both migrated off their old dedicated nic.<tld> RDAP hosts — .io in particular
+  // doesn't even appear in the IANA bootstrap file anymore, "stealth RDAP"), and
+  // Google Registry's shared RDAP server for .dev/.app. Don't add a TLD here without
+  // curling a known-registered domain first — a wrong host silently returns errors
+  // that this code already maps to "unknown", not a loud failure.
+  const RDAP_ENDPOINTS: Record<string, (name: string) => string> = {
+    com: (n) => `https://rdap.verisign.com/com/v1/domain/${n}.com`,
+    io: (n) => `https://rdap.identitydigital.services/rdap/domain/${n}.io`,
+    ai: (n) => `https://rdap.identitydigital.services/rdap/domain/${n}.ai`,
+    dev: (n) => `https://pubapi.registry.google/rdap/domain/${n}.dev`,
+    app: (n) => `https://pubapi.registry.google/rdap/domain/${n}.app`,
+  };
+  const SUPPORTED_TLDS = Object.keys(RDAP_ENDPOINTS);
+
+  // Real domain availability via RDAP. A bare 6s-timeout single attempt meant any
+  // transient network blip or RDAP hiccup silently downgraded a real "available" or
+  // "taken" result to `null` ("unknown") — the client then never offers that name at
+  // all, even when it was genuinely available. Retry a couple of times on
+  // timeout/network error before giving up, so a momentary blip doesn't cost a real
+  // available name.
+  async function checkTldAvailability(clean: string, tld: string): Promise<boolean | null> {
+    const buildUrl = RDAP_ENDPOINTS[tld];
+    if (!buildUrl) return null;
+    const rdapUrl = buildUrl(clean);
     const attempts = 3;
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
@@ -866,8 +890,16 @@ Write exactly three things in this format — no extra commentary:
     return null;
   }
 
+  // .com stays the default single-TLD check used everywhere internally (name-pool
+  // filtering, grid pre-checks, variant generation) — those call sites run this per
+  // candidate name and don't need the other 4 TLDs, so keep them fast and don't
+  // multiply their RDAP call volume for no benefit.
+  async function checkDomainAvailability(clean: string): Promise<boolean | null> {
+    return checkTldAvailability(clean, 'com');
+  }
+
   app.get('/api/check-domain', lookupLimiter, async (req, res) => {
-    const { name } = req.query as { name: string };
+    const { name, tlds } = req.query as { name: string; tlds?: string };
     if (!name) return res.status(400).json({ error: 'name required' });
     const clean = (name as string).toLowerCase().replace(/[^a-z0-9-]/g, '');
     if (!clean) return res.status(400).json({ error: 'invalid name' });
@@ -877,20 +909,29 @@ Write exactly three things in this format — no extra commentary:
     // If the exact name is taken, try brandable permutations (La prefix,
     // doubled consonant, trailing e/s) in parallel and surface the first one
     // that's actually free, so a taken domain doesn't dead-end the user.
+    let variant: { domain: string; technique: string } | null = null;
     if (available === false) {
       const candidates = generateDomainVariants(clean);
       const results = await Promise.all(
         candidates.map(async (c) => ({ ...c, available: await checkDomainAvailability(c.name) }))
       );
       const firstFree = results.find((r) => r.available === true);
-      return res.json({
-        domain: `${clean}.com`,
-        available: false,
-        variant: firstFree ? { domain: `${firstFree.name}.com`, technique: firstFree.technique } : null,
-      });
+      variant = firstFree ? { domain: `${firstFree.name}.com`, technique: firstFree.technique } : null;
     }
 
-    return res.json({ domain: `${clean}.com`, available, variant: null });
+    // Multi-TLD availability is opt-in (?tlds=io,ai,dev,app) — only requested by the
+    // single-name detail view, not the bulk grid/pool checks above, so those keep
+    // making exactly one RDAP call per candidate instead of five.
+    let tldResults: Record<string, boolean | null> | undefined;
+    if (tlds) {
+      const requested = tlds.split(',').map((t) => t.trim().toLowerCase()).filter((t) => SUPPORTED_TLDS.includes(t) && t !== 'com');
+      if (requested.length > 0) {
+        const entries = await Promise.all(requested.map(async (t) => [t, await checkTldAvailability(clean, t)] as const));
+        tldResults = { com: available, ...Object.fromEntries(entries) };
+      }
+    }
+
+    return res.json({ domain: `${clean}.com`, available, variant, tlds: tldResults });
   });
 
   // Preliminary USPTO trademark screening via MarkerAPI (markerapi.com), a

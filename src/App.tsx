@@ -112,6 +112,10 @@ export default function App() {
   const [selectedName, setSelectedName] = useState('');
   const [domainStatus, setDomainStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'unknown'>('idle');
   const [domainVariant, setDomainVariant] = useState<{ domain: string; technique: string } | null>(null);
+  // Extra TLDs (.io/.ai/.dev/.app) checked alongside .com only for the selected-name
+  // detail view — the grid/pool checks elsewhere stay .com-only on purpose, see
+  // server.ts's /api/check-domain comment on why that isn't multiplied everywhere.
+  const [tldAvailability, setTldAvailability] = useState<Record<string, boolean | null> | null>(null);
 
   // Preliminary USPTO screen (NOT legal clearance — see TRADEMARK_DISCLAIMER
   // fallback text and server.ts's /api/check-trademark for why).
@@ -930,12 +934,14 @@ export default function App() {
     if (!selectedName) return;
     setDomainStatus('checking');
     setDomainVariant(null);
+    setTldAvailability(null);
     const clean = selectedName.toLowerCase().replace(/[^a-z0-9]/g, '');
     try {
-      const r = await fetch(`/api/check-domain?name=${encodeURIComponent(clean)}`);
+      const r = await fetch(`/api/check-domain?name=${encodeURIComponent(clean)}&tlds=io,ai,dev,app`);
       const data = await r.json();
       setDomainStatus(data.available === true ? 'available' : data.available === false ? 'taken' : 'unknown');
       setDomainVariant(data.variant ?? null);
+      setTldAvailability(data.tlds ?? null);
     } catch {
       setDomainStatus('unknown');
     }
@@ -1161,11 +1167,11 @@ export default function App() {
             </div>
 
             <h1 className="[font-family:inherit] text-5xl md:text-6xl lg:text-7xl font-semibold text-neutral-900 leading-tight tracking-tight mb-6">
-              The AI naming engine<br/>
-              <span className="text-[#7CB800]">for founders who ship.</span>
+              Launch your next brand<br/>
+              <span className="text-[#7CB800]">without the trademark landmines.</span>
             </h1>
             <p className="text-lg md:text-xl text-neutral-500 max-w-2xl mx-auto mb-10 leading-relaxed">
-              Move beyond brainstorming. NamingStorm engineers category-defining, highly acquirable brand names — with phonetic scoring, trademark screening, and domain checks built in.
+              Contextual AI name generation, real-time domain checks across .com/.io/.ai/.dev/.app, and live USPTO federal trademark screening in one pass.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 items-center justify-center">
@@ -1174,7 +1180,7 @@ export default function App() {
                 onClick={handleLoginWithGoogle}
                 className="bg-[#7CB800] text-white font-medium rounded-full py-3.5 px-8 hover:bg-[#6ba300] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm"
               >
-                Get started <ChevronRight className="w-4 h-4" />
+                Generate & pre-clear your brand — free <ChevronRight className="w-4 h-4" />
               </button>
               <button
                 type="button"
@@ -1184,6 +1190,7 @@ export default function App() {
                 Try as guest
               </button>
             </div>
+            <p className="text-xs text-neutral-400 mt-4 font-mono">Live USPTO screening & multi-TLD domain checks included. No credit card required.</p>
           </div>
         </section>
 
@@ -1212,9 +1219,9 @@ export default function App() {
                 <div className="w-11 h-11 rounded-full bg-neutral-100 flex items-center justify-center mb-6">
                   <Globe className="w-5 h-5 text-neutral-700" />
                 </div>
-                <h3 className="[font-family:inherit] text-lg font-semibold text-neutral-900 leading-snug mb-2">Global pre-clearance</h3>
+                <h3 className="[font-family:inherit] text-lg font-semibold text-neutral-900 leading-snug mb-2">Multi-TLD & USPTO pre-screening</h3>
                 <p className="text-neutral-500 text-sm leading-relaxed">
-                  Every generated name is cross-referenced against trademark databases and domain registries, cutting legal friction before it starts.
+                  Every generated name is checked live against the USPTO federal trademark database and across .com, .io, .ai, .dev, and .app availability, cutting legal and domain friction before it starts.
                 </p>
               </div>
 
@@ -2221,6 +2228,28 @@ export default function App() {
                                 </div>
                               );
                             })()}
+                            {tldAvailability && Object.keys(tldAvailability).filter((t) => t !== 'com').length > 0 && (
+                              <div className="border-t border-zinc-800 mt-6 pt-6">
+                                <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-3">Other Extensions</p>
+                                <div className="flex flex-wrap gap-3">
+                                  {(['io', 'ai', 'dev', 'app'] as const).filter((t) => t in tldAvailability).map((t) => {
+                                    const clean = selectedName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                    const status = tldAvailability[t];
+                                    return (
+                                      <a
+                                        key={t}
+                                        href={status === true ? `https://www.namecheap.com/domains/registration/results/?domain=${clean}.${t}` : `https://who.is/whois/${clean}.${t}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={`font-mono text-sm px-3 py-2 border rounded-md ${status === true ? 'border-[#CCFF00]/50 text-[#CCFF00] hover:bg-[#CCFF00]/10' : status === false ? 'border-zinc-700 text-zinc-500' : 'border-zinc-800 text-zinc-600'}`}
+                                      >
+                                        .{t} {status === true ? '— available' : status === false ? '— taken' : '— unknown'}
+                                      </a>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </motion.div>
                         )}
                       </AnimatePresence>
