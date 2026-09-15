@@ -16,6 +16,12 @@ import { sql as drizzleSql, eq as drizzleEq } from 'drizzle-orm';
 import { users } from './shared/schema.js';
 import { generateDomainVariants } from './src/utils/domainVariants.js';
 
+// Must match App.tsx's copies (no shared module imported by both client and
+// server today) — these gate the same paywall, client-side for UI state,
+// here for the actual enforcement.
+const FREE_SEARCH_LIMIT = 5;
+const PAID_SEARCH_PACK_SIZE = 10;
+
 // Stripe helpers (uses env vars directly — no connector needed)
 export function getStripeClient(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -301,6 +307,67 @@ const verifyAuth = async (req: express.Request, res: express.Response, next: exp
   }
 };
 
+// Server-side paywall enforcement for the generation endpoints. Previously
+// the free-report/paid-credit/Pro gate lived only in client sessionStorage
+// (App.tsx `shouldShowPaywall`) — any direct API call bypassed it entirely.
+// This is the authoritative check; the client-side gate is now just a UI
+// convenience that mirrors it.
+//
+// Fails OPEN (allows the request through) if the quota check itself throws —
+// e.g. the `free_reports_used`/`paid_credits` columns don't exist yet because
+// `npm run db:push` hasn't been run against this environment's DATABASE_URL.
+// Failing closed here would take generation down entirely on a migration
+// gap; failing open is a temporary, logged regression to the pre-fix
+// (unenforced) state, not a new outage. Remove this fallback once the
+// migration has been confirmed applied in production.
+async function checkAndConsumeGeneration(reqUser: any): Promise<{ allowed: boolean; reason?: string }> {
+  try {
+    const db = await getDb();
+    const uid = reqUser.uid as string;
+
+    if (!reqUser.guest) {
+      // Active Pro subscription bypasses both counters entirely. Only
+      // checkable when a real Postgres DB is configured (the synced
+      // stripe.subscriptions table is Postgres-only) — local SQLite dev
+      // falls through to the free/paid-credit checks below.
+      if (isDbConfigured()) {
+        const rows = await db.select().from(users).where(drizzleEq(users.id, uid));
+        const customerId = rows[0]?.stripeCustomerId;
+        if (customerId) {
+          const result = await db.execute(
+            drizzleSql`SELECT 1 FROM stripe.subscriptions WHERE customer = ${customerId} AND status = 'active' LIMIT 1`
+          );
+          if (result.rows.length > 0) return { allowed: true };
+        }
+      }
+    }
+
+    // Ensure a row exists (guests included — a guest's self-asserted
+    // `guest_<id>` uid gets its own row so the free limit is enforced
+    // per-session, same as the previous sessionStorage-based behavior).
+    await db.insert(users).values({ id: uid, email: reqUser.email ?? null })
+      .onConflictDoNothing({ target: users.id });
+
+    const rows = await db.select().from(users).where(drizzleEq(users.id, uid));
+    const row = rows[0];
+    const freeUsed = row?.freeReportsUsed ?? 0;
+    const credits = row?.paidCredits ?? 0;
+
+    if (freeUsed < FREE_SEARCH_LIMIT) {
+      await db.update(users).set({ freeReportsUsed: freeUsed + 1 }).where(drizzleEq(users.id, uid));
+      return { allowed: true };
+    }
+    if (credits > 0) {
+      await db.update(users).set({ paidCredits: credits - 1 }).where(drizzleEq(users.id, uid));
+      return { allowed: true };
+    }
+    return { allowed: false, reason: 'PAYWALL' };
+  } catch (error) {
+    console.error('Quota check failed — failing open:', error);
+    return { allowed: true };
+  }
+}
+
 /**
  * Build the Express application with all API routes registered, but WITHOUT
  * starting Vite middleware, Stripe init, or `app.listen`. This makes the app
@@ -353,6 +420,32 @@ export async function buildApp(): Promise<express.Application> {
         stripeWebhookSecret: whSecret,
       });
       await sync.processWebhook(req.body as Buffer, Array.isArray(sig) ? sig[0] : sig);
+
+      // Grant paid search credits from the verified webhook event, not the
+      // client's success-redirect page (that page's ?payment_success=report
+      // param is client-controlled and was never proof of an actual charge —
+      // this is the authoritative source now). Independent signature
+      // verification via the official SDK, safe to run alongside sync's own
+      // verification above since both just parse the same already-read raw
+      // body. Only 'payment' mode sessions are report packs; 'subscription'
+      // mode (Pro) needs no credit grant since Pro bypasses the counter
+      // entirely via a live stripe.subscriptions check.
+      try {
+        const stripeEvent = getStripeClient().webhooks.constructEvent(req.body as Buffer, Array.isArray(sig) ? sig[0] : sig, whSecret);
+        if (stripeEvent.type === 'checkout.session.completed') {
+          const session = stripeEvent.data.object as Stripe.Checkout.Session;
+          if (session.mode === 'payment' && session.customer) {
+            const db = await getDb();
+            const customerId = typeof session.customer === 'string' ? session.customer : session.customer.id;
+            await db.update(users)
+              .set({ paidCredits: drizzleSql`${users.paidCredits} + ${PAID_SEARCH_PACK_SIZE}` })
+              .where(drizzleEq(users.stripeCustomerId, customerId));
+          }
+        }
+      } catch (creditError) {
+        console.error('Credit grant from webhook failed:', creditError);
+      }
+
       res.json({ received: true });
     } catch (e: any) {
       console.error('Webhook error:', e.message);
@@ -398,6 +491,11 @@ export async function buildApp(): Promise<express.Application> {
 
       if (!productDescription || !targetAudience || !positioningStatement) {
         return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const quota = await checkAndConsumeGeneration((req as any).user);
+      if (!quota.allowed) {
+        return res.status(402).json({ error: 'PAYWALL', message: "You've used your free searches. Purchase more to continue." });
       }
 
       const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;

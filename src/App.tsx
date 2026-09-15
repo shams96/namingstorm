@@ -892,7 +892,13 @@ export default function App() {
       console.error('Generation error:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       
-      if (errorMessage.includes('API_KEY_MISSING')) {
+      if (errorMessage.includes('PAYWALL')) {
+        // Server-side quota check rejected this (see checkAndConsumeGeneration
+        // in server.ts) — the authoritative source, not the local counters
+        // that drove the client-side pre-check above. Surfaces the same
+        // paywall the client-side check would have shown.
+        setShowPaywall(true);
+      } else if (errorMessage.includes('API_KEY_MISSING')) {
         setApiKeyError(true);
         setResponse('');
       } else if (errorMessage.includes('API key not valid') || errorMessage.includes('API_KEY_INVALID')) {
