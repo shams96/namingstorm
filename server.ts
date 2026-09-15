@@ -1103,11 +1103,21 @@ async function startServer() {
     });
   }
 
-  await initStripe();
-
+  // Bind and start accepting connections FIRST. initStripe() does real
+  // network I/O (DB migration, Stripe webhook find-or-create) that can take
+  // longer than some hosts' startup watchdog allows (seen in production:
+  // Hostinger's "did not call listen() within 3 seconds" warning fired here
+  // even after the require.main-guard fix, because this call was awaited
+  // before listen()). Running it after listen() means the process is always
+  // accepting traffic immediately regardless of DB/Stripe latency; routes
+  // that need Stripe (checkout, webhook) will simply 5xx for the few seconds
+  // until it finishes, instead of the whole server being at risk of getting
+  // killed as unresponsive.
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running at ${APP_URL}`);
   });
+
+  initStripe().catch((e) => console.error('Stripe init failed:', e));
 }
 
 startServer();
