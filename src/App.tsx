@@ -9,6 +9,7 @@ import { motion, AnimatePresence, MotionConfig } from 'motion/react';
 import { parseNames, parseEvolvedNames, parseNamePool, shouldShowPaywall } from './utils/parseNames';
 import { scoreNameFn, getSoundProfile } from './utils/nameScoring';
 import { FeedbackWidget } from './components/FeedbackWidget';
+import { LegalPage } from './components/LegalPage';
 
 const FREE_SEARCH_LIMIT = 5;
 const PAID_SEARCH_PACK_SIZE = 10;
@@ -1199,6 +1200,10 @@ export default function App() {
     resetReportSubState();
   };
 
+  if (window.location.pathname === '/legal' || window.location.pathname === '/terms') {
+    return <LegalPage />;
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen bg-white text-neutral-700 font-sans selection:bg-[#7CB800] selection:text-white overflow-x-hidden">
@@ -1306,6 +1311,10 @@ export default function App() {
               </button>
             </div>
             <p className="text-xs text-neutral-400 mt-4 font-mono">Live USPTO screening & multi-TLD domain checks included. No credit card required.</p>
+            <p className="text-xs text-neutral-400 mt-2 max-w-xl mx-auto">
+              AI-generated suggestions, not legal advice — you use this tool at your own risk. Verify any name independently before registering it. See{' '}
+              <a href="/legal" className="underline hover:text-neutral-600">Terms &amp; Disclaimers</a>.
+            </p>
           </div>
         </section>
 
@@ -1462,6 +1471,11 @@ export default function App() {
             </div>
           </div>
         </section>
+
+        {/* Footer */}
+        <footer className="py-8 px-6 border-t border-neutral-200 text-center">
+          <a href="/legal" className="text-xs text-neutral-400 hover:text-neutral-600 underline">Terms &amp; Disclaimers</a>
+        </footer>
       </div>
     );
   }
@@ -1647,13 +1661,19 @@ export default function App() {
             </div>
           </div>
         </div>
-        
+
+        {/* Desktop footer link (bottom of sidebar) */}
+        <div className="hidden md:block p-4 border-t border-zinc-900">
+          <a href="/legal" className="block text-center text-[10px] font-mono text-zinc-600 hover:text-zinc-400 uppercase tracking-widest">Terms &amp; Disclaimers</a>
+        </div>
+
         {/* Mobile Logout (bottom of sidebar) */}
-        <div className="md:hidden p-4 border-t border-zinc-900">
+        <div className="md:hidden p-4 border-t border-zinc-900 space-y-3">
           <button onClick={logout} className="w-full flex items-center justify-center gap-2 text-zinc-300 hover:text-white py-3 border border-zinc-800">
             <LogOut className="w-4 h-4" />
             <span className="text-xs font-mono uppercase tracking-widest">Disconnect</span>
           </button>
+          <a href="/legal" className="block text-center text-[10px] font-mono text-zinc-600 hover:text-zinc-400 uppercase tracking-widest">Terms &amp; Disclaimers</a>
         </div>
       </div>
 
