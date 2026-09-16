@@ -707,15 +707,26 @@ export default function App() {
     }
   };
 
-  const checkDomainAvailable = async (name: string): Promise<'available' | 'taken' | 'unknown'> => {
+  // Full response including `variant` — whenever the exact name is taken, the
+  // server has already computed and RDAP-confirmed a brandable alternative
+  // (La-prefix/doubled-letter/+e/+s) for free in the same call. Most callers
+  // only need the status; selectAvailableNames below uses the variant too, as
+  // a guaranteed-available fallback instead of hoping a future retry round
+  // happens to generate something free.
+  const checkDomainDetailed = async (name: string): Promise<{ status: 'available' | 'taken' | 'unknown'; variant: { domain: string; technique: string } | null }> => {
     const clean = name.toLowerCase().replace(/[^a-z0-9]/g, '');
     try {
       const r = await fetch(`/api/check-domain?name=${encodeURIComponent(clean)}`);
       const data = await r.json();
-      return data.available === true ? 'available' : data.available === false ? 'taken' : 'unknown';
+      const status = data.available === true ? 'available' : data.available === false ? 'taken' : 'unknown';
+      return { status, variant: data.variant ?? null };
     } catch {
-      return 'unknown';
+      return { status: 'unknown', variant: null };
     }
+  };
+
+  const checkDomainAvailable = async (name: string): Promise<'available' | 'taken' | 'unknown'> => {
+    return (await checkDomainDetailed(name)).status;
   };
 
   // Create → Invent → Implement: pulls a raw candidate pool per phase from
@@ -764,17 +775,27 @@ export default function App() {
     const phases: Array<'phase1' | 'phase2' | 'phase3'> = ['phase1', 'phase2', 'phase3'];
     const allCandidates = phases.flatMap((p) => pool[p]);
 
-    const availability: Record<string, 'available' | 'taken' | 'unknown'> = {};
+    type CheckResult = { status: 'available' | 'taken' | 'unknown'; variant: { domain: string; technique: string } | null };
+    const checked: Record<string, CheckResult> = {};
     await Promise.all(allCandidates.map(async (name) => {
-      availability[name] = await checkDomainAvailable(name);
+      checked[name] = await checkDomainDetailed(name);
     }));
+
+    // A taken exact name still comes back with a real, RDAP-confirmed brandable
+    // variant (La-prefix/doubled-letter/+e/+s) computed server-side for free in
+    // the same call — see /api/check-domain. Turn that into a proper-cased brand
+    // name the same way the alternatives generator does.
+    const variantToName = (v: { domain: string; technique: string }): string => {
+      const raw = v.domain.replace(/\.com$/i, '');
+      return raw.charAt(0).toUpperCase() + raw.slice(1);
+    };
 
     const winners = { phase1: '', phase2: '', phase3: '' };
     for (const phase of phases) {
       const candidates = pool[phase];
       if (candidates.length === 0) continue;
 
-      const firstAvailable = candidates.find((n) => availability[n] === 'available');
+      const firstAvailable = candidates.find((n) => checked[n].status === 'available');
       if (firstAvailable) {
         winners[phase] = firstAvailable;
         continue;
@@ -782,14 +803,14 @@ export default function App() {
 
       // Entire phase pool is taken — widen the search across multiple rounds,
       // excluding every name seen so far (original pool + every prior retry
-      // round), until something confirmed available turns up. `everSeen`
-      // accumulates every name's real checked status across every round, so
-      // the final fallback (if we truly never find an available one) is
-      // computed once at the end from the full history — it can pick an
-      // 'unknown' name but can *never* pick one this function itself already
+      // round), until an exact name comes back confirmed available. `everChecked`
+      // accumulates every name's real checked result across every round
+      // (original pool + all retries), so the eventual fallback is computed once
+      // from the full history — it can pick a guaranteed-available variant or an
+      // 'unknown' name, but can *never* pick one this function itself already
       // confirmed 'taken', no matter which round it came from.
       const seen = new Set(allCandidates);
-      const everChecked: Record<string, 'available' | 'taken' | 'unknown'> = { ...availability };
+      const everChecked: Record<string, CheckResult> = { ...checked };
       let seedName = candidates[0];
       let found = '';
 
@@ -805,19 +826,29 @@ export default function App() {
         if (newNames.length === 0) continue; // model echoed only already-seen names — try another round, don't give up
         newNames.forEach((n) => seen.add(n));
 
-        await Promise.all(newNames.map(async (n) => { everChecked[n] = await checkDomainAvailable(n); }));
-        found = newNames.find((n) => everChecked[n] === 'available') || '';
+        await Promise.all(newNames.map(async (n) => { everChecked[n] = await checkDomainDetailed(n); }));
+        found = newNames.find((n) => everChecked[n].status === 'available') || '';
         seedName = newNames[0]; // keep widening from the newest batch next round
       }
 
-      // Absolute last resort (every round exhausted, nothing ever came back
-      // available): pick from the FULL history of every name this function
-      // checked, preferring 'unknown' (couldn't verify — honest uncertainty)
-      // and refusing to ever select one confirmed 'taken'.
-      winners[phase] = found
-        || Object.keys(everChecked).find((n) => everChecked[n] === 'unknown')
-        || Object.keys(everChecked).find((n) => everChecked[n] !== 'taken')
-        || candidates[0];
+      if (found) {
+        winners[phase] = found;
+        continue;
+      }
+
+      // No exact name ever came back available. Fall back to a guaranteed-
+      // available variant of whichever checked name has one — this is the
+      // common case for real-word-leaning strategies (Semantic Shift,
+      // Morphemic Blending), where most short dictionary/root words are
+      // already registered but a brandable variant almost always is. Only if
+      // NOTHING ever produced a variant do we fall further to an 'unknown'
+      // name, and only after that to something not yet proven taken.
+      const withVariant = Object.values(everChecked).find((c) => c.variant);
+      winners[phase] = withVariant?.variant
+        ? variantToName(withVariant.variant)
+        : Object.keys(everChecked).find((n) => everChecked[n].status === 'unknown')
+          || Object.keys(everChecked).find((n) => everChecked[n].status !== 'taken')
+          || candidates[0];
     }
     return winners;
   };
