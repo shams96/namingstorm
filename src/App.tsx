@@ -1157,6 +1157,26 @@ export default function App() {
     setDomainStatus('idle');
     setSelectedName('');
     setIsMobileMenuOpen(false);
+
+    // The 3 featured-name cards self-refresh (a useEffect keyed on the parsed
+    // report content re-checks their domains automatically), but everything
+    // below them is scoped to whichever report was on screen when it was
+    // generated, not to the project being switched to — so it has to be
+    // cleared explicitly here. Without this, switching projects left an
+    // entirely unrelated project's "Alternative Available Names" grid (and
+    // stale Evolve/Story/manual-check results) glued underneath the newly
+    // loaded report.
+    setDomainVariant(null);
+    setAlternativeNames([]);
+    setAlternativeAvailability({});
+    setAlternativesExhausted(false);
+    setGeneratingAlternatives(false);
+    setEvolveResponse('');
+    setEvolveLoading(false);
+    setParsedEvolvedNames([]);
+    setBrandStoryTarget(null);
+    setBrandStoryText('');
+    setBrandStoryLoading(false);
   };
 
   if (!user) {
