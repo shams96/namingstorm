@@ -266,13 +266,31 @@ const generateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Lighter limiter for domain/trademark lookups — these are unauthenticated
-// (guests can check availability before signing up) and call metered
-// third-party APIs (RDAP, MarkerAPI's 1K/month free tier), so they still
-// need a cap to prevent quota exhaustion or upstream IP bans from abuse.
+// Limiter for the single-name trademark lookup — no bulk-checking pattern
+// calls this one, so the original conservative cap (it also protects
+// MarkerAPI's 1K/month free tier) stays as-is.
 const lookupLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
+  message: { error: 'Too many requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// /api/check-domain gets its own, much higher-capacity limiter: it's called
+// in real bulk internally, not just once per user click — selectAvailableNames'
+// initial pool check (~9 names) plus up to 4 widening rounds per phase, AND
+// generateAlternatives' own up to 4 rounds x 10 checks, can together fire 60+
+// calls for a single report. Sharing the 30/min lookupLimiter cap meant most
+// of a legitimate alternatives batch came back 429 -> mapped to 'unknown' ->
+// permanently shown as "UNVERIFIED", which is exactly what happened in
+// production (a 40-name alternatives grid where most entries were
+// unverified, not because RDAP failed, but because this app rate-limited
+// itself). RDAP is free/unmetered (unlike MarkerAPI), so a high cap here is
+// still an abuse guard, not a real capacity constraint.
+const domainCheckLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 150,
   message: { error: 'Too many requests. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -914,7 +932,7 @@ Write exactly three things in this format — no extra commentary:
     return checkTldAvailability(clean, 'com');
   }
 
-  app.get('/api/check-domain', lookupLimiter, async (req, res) => {
+  app.get('/api/check-domain', domainCheckLimiter, async (req, res) => {
     const { name, tlds } = req.query as { name: string; tlds?: string };
     if (!name) return res.status(400).json({ error: 'name required' });
     const clean = (name as string).toLowerCase().replace(/[^a-z0-9-]/g, '');

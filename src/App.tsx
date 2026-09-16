@@ -2097,11 +2097,20 @@ export default function App() {
                       </p>
                     </div>
                     {(() => {
-                      // Never surface a confirmed-taken name here — this section's only
-                      // job is names the user can actually register. "Checking" and
-                      // "unknown" stay visible (still resolving / RDAP was inconclusive);
-                      // "taken" is dropped from the grid entirely, not badged.
-                      const visibleNames = alternativeNames.filter(n => alternativeAvailability[n] !== 'taken');
+                      // This section's only job is names the user can actually register.
+                      // While still generating, show 'checking'/'unknown' too (live
+                      // progress feedback) alongside 'available' — but once the search is
+                      // done, collapse to ONLY confirmed-available names, capped to a
+                      // reasonable count. Rounds that struggle to find enough available
+                      // names can accumulate 30-40+ tried candidates (most 'taken' or
+                      // 'unknown'); leaving all of them permanently on screen produced a
+                      // wall of mostly-grey "Unverified" cards that swamped the page —
+                      // exhaust from the search process, not useful information for
+                      // someone picking a name to register.
+                      const MAX_DISPLAYED_ALTERNATIVES = 8;
+                      const visibleNames = generatingAlternatives
+                        ? alternativeNames.filter(n => alternativeAvailability[n] !== 'taken')
+                        : alternativeNames.filter(n => alternativeAvailability[n] === 'available').slice(0, MAX_DISPLAYED_ALTERNATIVES);
                       const availableCount = alternativeNames.filter(n => alternativeAvailability[n] === 'available').length;
 
                       if (generatingAlternatives && visibleNames.length === 0) {
