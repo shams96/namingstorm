@@ -725,11 +725,21 @@ export default function App() {
   // (excluding every name seen across all previous rounds) up to
   // MAX_AVAILABILITY_ROUNDS times, instead of giving up after one attempt.
   // This runs BEFORE the full rationale is written, so the primary 3 names
-  // are pre-verified as registerable, not discovered taken after the fact —
-  // and a name confirmed taken is never locked into the report as a
-  // recommendation, even as a last resort (see incident where "Vero" was
-  // surfaced as NAME_3 despite the tool itself having already checked
-  // vero.com and found it registered).
+  // are pre-verified as registerable, not discovered taken after the fact.
+  //
+  // HARD RULE: a name with a *confirmed* 'taken' status is never selected as
+  // a winner, full stop — not even as a last resort. An earlier version of
+  // this function broke that rule the moment a single retry round returned
+  // zero genuinely-new names (the model doesn't reliably honor the
+  // "exclude these" instruction — see /api/evolve's excludeClause, which is
+  // a prompt suggestion, not an enforced filter): it aborted the retry loop
+  // immediately and fell back to the ORIGINAL, already-confirmed-taken pool.
+  // That's exactly how "Vero" and, in a later incident, "Veltora"/"Koruza"
+  // reached the featured report despite the tool having already checked
+  // their domains and found them registered. Fixed by (1) treating a
+  // no-new-names round as "try again", not "give up", and (2) tracking the
+  // best fallback seen across every round so a 'taken' name can never win a
+  // tie against an 'unknown' one.
   const MAX_AVAILABILITY_ROUNDS = 4;
 
   const selectAvailableNames = async (
@@ -770,32 +780,44 @@ export default function App() {
         continue;
       }
 
-      // Entire phase pool is taken — widen the search, excluding every name
-      // seen so far across all rounds, until something available turns up or
-      // the round budget is exhausted. Never settle for a name already
-      // confirmed taken; if every round comes up empty, keep the most
-      // recently generated (least-searched, not a known-dead-end) candidate
-      // so at minimum the user sees an accurate "still checking/unverified"
-      // name rather than one silently locked in as taken.
+      // Entire phase pool is taken — widen the search across multiple rounds,
+      // excluding every name seen so far (original pool + every prior retry
+      // round), until something confirmed available turns up. `everSeen`
+      // accumulates every name's real checked status across every round, so
+      // the final fallback (if we truly never find an available one) is
+      // computed once at the end from the full history — it can pick an
+      // 'unknown' name but can *never* pick one this function itself already
+      // confirmed 'taken', no matter which round it came from.
       const seen = new Set(allCandidates);
-      let lastRoundCandidates = candidates;
+      const everChecked: Record<string, 'available' | 'taken' | 'unknown'> = { ...availability };
+      let seedName = candidates[0];
       let found = '';
+
       for (let round = 0; round < MAX_AVAILABILITY_ROUNDS && !found; round++) {
+        let retryNames: string[];
         try {
-          const retryNames = await fetchEvolvedVariants(headers, lastRoundCandidates[0], Array.from(seen), 'wide');
-          const newNames = retryNames.filter((n) => !seen.has(n));
-          if (newNames.length === 0) break; // model has nothing new left to offer
-          newNames.forEach((n) => seen.add(n));
-          const retryAvailability: Record<string, 'available' | 'taken' | 'unknown'> = {};
-          await Promise.all(newNames.map(async (n) => { retryAvailability[n] = await checkDomainAvailable(n); }));
-          found = newNames.find((n) => retryAvailability[n] === 'available') || '';
-          lastRoundCandidates = newNames;
+          retryNames = await fetchEvolvedVariants(headers, seedName, Array.from(seen), 'wide');
         } catch (err) {
           console.error(`Pool retry error (round ${round + 1}):`, err);
-          break;
+          break; // API/network failure — can't widen further, but never fall back to a known-taken name
         }
+        const newNames = retryNames.filter((n) => !seen.has(n));
+        if (newNames.length === 0) continue; // model echoed only already-seen names — try another round, don't give up
+        newNames.forEach((n) => seen.add(n));
+
+        await Promise.all(newNames.map(async (n) => { everChecked[n] = await checkDomainAvailable(n); }));
+        found = newNames.find((n) => everChecked[n] === 'available') || '';
+        seedName = newNames[0]; // keep widening from the newest batch next round
       }
-      winners[phase] = found || lastRoundCandidates[0];
+
+      // Absolute last resort (every round exhausted, nothing ever came back
+      // available): pick from the FULL history of every name this function
+      // checked, preferring 'unknown' (couldn't verify — honest uncertainty)
+      // and refusing to ever select one confirmed 'taken'.
+      winners[phase] = found
+        || Object.keys(everChecked).find((n) => everChecked[n] === 'unknown')
+        || Object.keys(everChecked).find((n) => everChecked[n] !== 'taken')
+        || candidates[0];
     }
     return winners;
   };
