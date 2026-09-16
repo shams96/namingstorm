@@ -278,6 +278,22 @@ const lookupLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// /api/generate-pool and /api/evolve are internal steps of a single "generate"
+// action, not independent user-initiated requests — selectAvailableNames
+// (App.tsx) can call /api/evolve up to MAX_AVAILABILITY_ROUNDS times *per
+// phase* (up to ~12 calls) when a phase's initial pool is hard to clear for
+// domain availability, on top of one /api/generate-pool call, all from a
+// single "Initialize Protocol" click. Sharing generateLimiter's 10/min cap
+// with these caused real single-user generations to self-trigger "You're
+// generating names a bit fast" — not abuse, just this function doing its job.
+const evolveLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 40,
+  message: { error: 'Too many requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Auth middleware — accepts Firebase ID token or a guest session ID
 const verifyAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   // Guest mode: client sends a local UUID, no Firebase needed
@@ -649,7 +665,7 @@ ${hasLockedNames
   // domain-taken names BEFORE committing to the full streamed narrative in
   // /api/generate. Non-streaming: the payload is small and doesn't benefit
   // from a typewriter reveal the way the finished rationale does.
-  app.post('/api/generate-pool', verifyAuth, generateLimiter, async (req, res) => {
+  app.post('/api/generate-pool', verifyAuth, evolveLimiter, async (req, res) => {
     try {
       const { productDescription, targetAudience, additionalContext, thinkingLevel, competitors, positioningStatement } = req.body;
       if (!productDescription || !targetAudience || !positioningStatement) {
@@ -725,7 +741,7 @@ Execute the Unicorn Protocol's ideation step — 8 candidates per phase, best-fi
     }
   });
 
-  app.post('/api/evolve', verifyAuth, generateLimiter, async (req, res) => {
+  app.post('/api/evolve', verifyAuth, evolveLimiter, async (req, res) => {
     try {
       const { name, productDescription, targetAudience, count = 5, excludeNames = [], divergence = 'close' } = req.body;
       if (!name || !productDescription) return res.status(400).json({ error: 'Missing required fields' });
