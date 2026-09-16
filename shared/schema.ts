@@ -17,14 +17,3 @@ export const users = pgTable('users', {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
-
-export const feedback = pgTable('feedback', {
-  id: text('id').primaryKey(),
-  userId: text('user_id'),
-  email: text('email'),
-  message: text('message').notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
-});
-
-export type Feedback = typeof feedback.$inferSelect;
-export type InsertFeedback = typeof feedback.$inferInsert;

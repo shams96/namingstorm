@@ -13,8 +13,7 @@ import { runMigrations, StripeSync } from 'stripe-replit-sync';
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { sql as drizzleSql, eq as drizzleEq } from 'drizzle-orm';
-import { randomUUID } from 'crypto';
-import { users, feedback } from './shared/schema.js';
+import { users } from './shared/schema.js';
 import { generateDomainVariants } from './src/utils/domainVariants.js';
 
 // Must match App.tsx's copies (no shared module imported by both client and
@@ -483,40 +482,6 @@ export async function buildApp(): Promise<express.Application> {
     } catch (error) {
       console.error('Account deletion error:', error);
       res.status(500).json({ error: 'Could not delete account. Please try again.' });
-    }
-  });
-
-  // Free-text product feedback. Open to guests too (not just signed-in users) —
-  // gating feedback behind an account would cut off exactly the users who are
-  // deciding whether to create one. Fails open to a generic 500 rather than
-  // silently dropping feedback the user thinks was sent.
-  app.post('/api/feedback', verifyAuth, lookupLimiter, async (req, res) => {
-    const { message } = req.body as { message?: string };
-    const trimmed = (message ?? '').trim();
-    if (!trimmed) return res.status(400).json({ error: 'message is required' });
-    if (trimmed.length > 4000) return res.status(400).json({ error: 'message is too long (max 4000 characters)' });
-
-    const reqUser = (req as any).user;
-    try {
-      if (!isDbConfigured()) {
-        console.log('Feedback (no DB configured, logged only):', { uid: reqUser?.uid, message: trimmed });
-        return res.json({ received: true });
-      }
-      const db = await getDb();
-      await db.insert(feedback).values({
-        id: randomUUID(),
-        userId: reqUser?.guest ? null : reqUser?.uid ?? null,
-        email: reqUser?.guest ? null : reqUser?.email ?? null,
-        message: trimmed,
-      });
-      res.json({ received: true });
-    } catch (error) {
-      // Fails open (logs and still tells the user it was received) rather than
-      // 500ing on them — same reasoning as checkAndConsumeGeneration: this table
-      // needs `npm run db:push` applied before it exists, and a missing-migration
-      // gap should degrade to "logged, not stored" instead of a broken feature.
-      console.error('Feedback submission error (degraded to log-only):', error, { uid: reqUser?.uid, message: trimmed });
-      res.json({ received: true });
     }
   });
 
