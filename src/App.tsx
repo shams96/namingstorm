@@ -726,7 +726,86 @@ export default function App() {
   // no-new-names round as "try again", not "give up", and (2) tracking the
   // best fallback seen across every round so a 'taken' name can never win a
   // tie against an 'unknown' one.
+  //
+  // PERFORMANCE: the 3 phases run CONCURRENTLY (Promise.all below), not one
+  // after another. An earlier version processed them in a sequential for-loop
+  // — with every phase potentially needing up to MAX_AVAILABILITY_ROUNDS
+  // retries, that meant worst case ~12 rounds run back-to-back, which in
+  // production stretched past 115s and triggered a real "taking longer than
+  // expected" AI-engine timeout on a name that genuinely needed several
+  // rounds of widening for more than one phase. Running phases concurrently
+  // caps worst-case latency at roughly one phase's worth of rounds instead of
+  // all three's.
   const MAX_AVAILABILITY_ROUNDS = 4;
+
+  type CheckResult = { status: 'available' | 'taken' | 'unknown'; variant: { domain: string; technique: string } | null };
+
+  // A taken exact name still comes back with a real, RDAP-confirmed brandable
+  // variant (La-prefix/doubled-letter/+e/+s) computed server-side for free in
+  // the same call — see /api/check-domain. Turn that into a proper-cased brand
+  // name the same way the alternatives generator does.
+  const variantToName = (v: { domain: string; technique: string }): string => {
+    const raw = v.domain.replace(/\.com$/i, '');
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  };
+
+  const selectAvailableNameForPhase = async (
+    headers: Record<string, string>,
+    candidates: string[],
+    allCandidates: string[],
+    checked: Record<string, CheckResult>
+  ): Promise<string> => {
+    if (candidates.length === 0) return '';
+
+    const firstAvailable = candidates.find((n) => checked[n].status === 'available');
+    if (firstAvailable) return firstAvailable;
+
+    // Entire phase pool is taken — widen the search across multiple rounds,
+    // excluding every name seen so far (original pool + every prior retry
+    // round), until an exact name comes back confirmed available. `everChecked`
+    // accumulates every name's real checked result across every round
+    // (original pool + all retries), so the eventual fallback is computed once
+    // from the full history — it can pick a guaranteed-available variant or an
+    // 'unknown' name, but can *never* pick one this function itself already
+    // confirmed 'taken', no matter which round it came from.
+    const seen = new Set(allCandidates);
+    const everChecked: Record<string, CheckResult> = { ...checked };
+    let seedName = candidates[0];
+    let found = '';
+
+    for (let round = 0; round < MAX_AVAILABILITY_ROUNDS && !found; round++) {
+      let retryNames: string[];
+      try {
+        retryNames = await fetchEvolvedVariants(headers, seedName, Array.from(seen), 'wide');
+      } catch (err) {
+        console.error(`Pool retry error (round ${round + 1}):`, err);
+        break; // API/network failure — can't widen further, but never fall back to a known-taken name
+      }
+      const newNames = retryNames.filter((n) => !seen.has(n));
+      if (newNames.length === 0) continue; // model echoed only already-seen names — try another round, don't give up
+      newNames.forEach((n) => seen.add(n));
+
+      await Promise.all(newNames.map(async (n) => { everChecked[n] = await checkDomainDetailed(n); }));
+      found = newNames.find((n) => everChecked[n].status === 'available') || '';
+      seedName = newNames[0]; // keep widening from the newest batch next round
+    }
+
+    if (found) return found;
+
+    // No exact name ever came back available. Fall back to a guaranteed-
+    // available variant of whichever checked name has one — this is the
+    // common case for real-word-leaning strategies (Semantic Shift,
+    // Morphemic Blending), where most short dictionary/root words are
+    // already registered but a brandable variant almost always is. Only if
+    // NOTHING ever produced a variant do we fall further to an 'unknown'
+    // name, and only after that to something not yet proven taken.
+    const withVariant = Object.values(everChecked).find((c) => c.variant);
+    return withVariant?.variant
+      ? variantToName(withVariant.variant)
+      : Object.keys(everChecked).find((n) => everChecked[n].status === 'unknown')
+        || Object.keys(everChecked).find((n) => everChecked[n].status !== 'taken')
+        || candidates[0];
+  };
 
   const selectAvailableNames = async (
     headers: Record<string, string>
@@ -750,82 +829,15 @@ export default function App() {
     const phases: Array<'phase1' | 'phase2' | 'phase3'> = ['phase1', 'phase2', 'phase3'];
     const allCandidates = phases.flatMap((p) => pool[p]);
 
-    type CheckResult = { status: 'available' | 'taken' | 'unknown'; variant: { domain: string; technique: string } | null };
     const checked: Record<string, CheckResult> = {};
     await Promise.all(allCandidates.map(async (name) => {
       checked[name] = await checkDomainDetailed(name);
     }));
 
-    // A taken exact name still comes back with a real, RDAP-confirmed brandable
-    // variant (La-prefix/doubled-letter/+e/+s) computed server-side for free in
-    // the same call — see /api/check-domain. Turn that into a proper-cased brand
-    // name the same way the alternatives generator does.
-    const variantToName = (v: { domain: string; technique: string }): string => {
-      const raw = v.domain.replace(/\.com$/i, '');
-      return raw.charAt(0).toUpperCase() + raw.slice(1);
-    };
-
-    const winners = { phase1: '', phase2: '', phase3: '' };
-    for (const phase of phases) {
-      const candidates = pool[phase];
-      if (candidates.length === 0) continue;
-
-      const firstAvailable = candidates.find((n) => checked[n].status === 'available');
-      if (firstAvailable) {
-        winners[phase] = firstAvailable;
-        continue;
-      }
-
-      // Entire phase pool is taken — widen the search across multiple rounds,
-      // excluding every name seen so far (original pool + every prior retry
-      // round), until an exact name comes back confirmed available. `everChecked`
-      // accumulates every name's real checked result across every round
-      // (original pool + all retries), so the eventual fallback is computed once
-      // from the full history — it can pick a guaranteed-available variant or an
-      // 'unknown' name, but can *never* pick one this function itself already
-      // confirmed 'taken', no matter which round it came from.
-      const seen = new Set(allCandidates);
-      const everChecked: Record<string, CheckResult> = { ...checked };
-      let seedName = candidates[0];
-      let found = '';
-
-      for (let round = 0; round < MAX_AVAILABILITY_ROUNDS && !found; round++) {
-        let retryNames: string[];
-        try {
-          retryNames = await fetchEvolvedVariants(headers, seedName, Array.from(seen), 'wide');
-        } catch (err) {
-          console.error(`Pool retry error (round ${round + 1}):`, err);
-          break; // API/network failure — can't widen further, but never fall back to a known-taken name
-        }
-        const newNames = retryNames.filter((n) => !seen.has(n));
-        if (newNames.length === 0) continue; // model echoed only already-seen names — try another round, don't give up
-        newNames.forEach((n) => seen.add(n));
-
-        await Promise.all(newNames.map(async (n) => { everChecked[n] = await checkDomainDetailed(n); }));
-        found = newNames.find((n) => everChecked[n].status === 'available') || '';
-        seedName = newNames[0]; // keep widening from the newest batch next round
-      }
-
-      if (found) {
-        winners[phase] = found;
-        continue;
-      }
-
-      // No exact name ever came back available. Fall back to a guaranteed-
-      // available variant of whichever checked name has one — this is the
-      // common case for real-word-leaning strategies (Semantic Shift,
-      // Morphemic Blending), where most short dictionary/root words are
-      // already registered but a brandable variant almost always is. Only if
-      // NOTHING ever produced a variant do we fall further to an 'unknown'
-      // name, and only after that to something not yet proven taken.
-      const withVariant = Object.values(everChecked).find((c) => c.variant);
-      winners[phase] = withVariant?.variant
-        ? variantToName(withVariant.variant)
-        : Object.keys(everChecked).find((n) => everChecked[n].status === 'unknown')
-          || Object.keys(everChecked).find((n) => everChecked[n].status !== 'taken')
-          || candidates[0];
-    }
-    return winners;
+    const [phase1, phase2, phase3] = await Promise.all(
+      phases.map((phase) => selectAvailableNameForPhase(headers, pool[phase], allCandidates, checked))
+    );
+    return { phase1, phase2, phase3 };
   };
 
   const handleGenerate = async () => {
@@ -860,6 +872,7 @@ export default function App() {
     setSelectedName('');
     setIsMobileMenuOpen(false);
     setApiKeyError(false);
+    resetReportSubState();
 
     let fullResponse = '';
 
@@ -1145,6 +1158,29 @@ export default function App() {
     }
   };
 
+  // Everything scoped to whichever report happens to be on screen — the
+  // "Alternative Available Names" grid, the Evolve panel, the brand-story
+  // panel, and the manual domain-check result — none of it is tied to the
+  // report itself, so it has to be cleared explicitly any time the report
+  // changes out from under it. Two call sites need this: switching to a
+  // different saved project (loadProject), and starting a brand new
+  // generation (handleGenerate) — missing it in either one leaves a
+  // completely unrelated run's leftover sub-results glued underneath the
+  // current report.
+  const resetReportSubState = () => {
+    setDomainVariant(null);
+    setAlternativeNames([]);
+    setAlternativeAvailability({});
+    setAlternativesExhausted(false);
+    setGeneratingAlternatives(false);
+    setEvolveResponse('');
+    setEvolveLoading(false);
+    setParsedEvolvedNames([]);
+    setBrandStoryTarget(null);
+    setBrandStoryText('');
+    setBrandStoryLoading(false);
+  };
+
   const loadProject = (project: any) => {
     setProductDescription(project.productDescription);
     setPositioningStatement(project.positioningStatement || '');
@@ -1157,26 +1193,10 @@ export default function App() {
     setDomainStatus('idle');
     setSelectedName('');
     setIsMobileMenuOpen(false);
-
     // The 3 featured-name cards self-refresh (a useEffect keyed on the parsed
-    // report content re-checks their domains automatically), but everything
-    // below them is scoped to whichever report was on screen when it was
-    // generated, not to the project being switched to — so it has to be
-    // cleared explicitly here. Without this, switching projects left an
-    // entirely unrelated project's "Alternative Available Names" grid (and
-    // stale Evolve/Story/manual-check results) glued underneath the newly
-    // loaded report.
-    setDomainVariant(null);
-    setAlternativeNames([]);
-    setAlternativeAvailability({});
-    setAlternativesExhausted(false);
-    setGeneratingAlternatives(false);
-    setEvolveResponse('');
-    setEvolveLoading(false);
-    setParsedEvolvedNames([]);
-    setBrandStoryTarget(null);
-    setBrandStoryText('');
-    setBrandStoryLoading(false);
+    // report content re-checks their domains automatically) — everything else
+    // needs the explicit reset below.
+    resetReportSubState();
   };
 
   if (!user) {
