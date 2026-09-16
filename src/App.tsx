@@ -720,12 +720,18 @@ export default function App() {
 
   // Create → Invent → Implement: pulls a raw candidate pool per phase from
   // /api/generate-pool, checks real domain availability for all of it up front,
-  // and picks the first available candidate per phase — falling back to one
-  // widened /api/evolve retry (excluding everything already seen) if an entire
-  // phase's pool is taken, and only then to the best candidate anyway. This
-  // runs BEFORE the full rationale is written, so the primary 3 names are
-  // usually pre-verified as registerable instead of discovered taken after the
-  // fact.
+  // and picks the first available candidate per phase. If an entire phase's
+  // pool is taken, widens the search with repeated /api/evolve retries
+  // (excluding every name seen across all previous rounds) up to
+  // MAX_AVAILABILITY_ROUNDS times, instead of giving up after one attempt.
+  // This runs BEFORE the full rationale is written, so the primary 3 names
+  // are pre-verified as registerable, not discovered taken after the fact —
+  // and a name confirmed taken is never locked into the report as a
+  // recommendation, even as a last resort (see incident where "Vero" was
+  // surfaced as NAME_3 despite the tool itself having already checked
+  // vero.com and found it registered).
+  const MAX_AVAILABILITY_ROUNDS = 4;
+
   const selectAvailableNames = async (
     headers: Record<string, string>
   ): Promise<{ phase1: string; phase2: string; phase3: string }> => {
@@ -764,16 +770,32 @@ export default function App() {
         continue;
       }
 
-      // Entire phase pool is taken — one widened retry, excluding everything seen so far.
-      try {
-        const retryNames = await fetchEvolvedVariants(headers, candidates[0], allCandidates, 'wide');
-        const retryAvailability: Record<string, 'available' | 'taken' | 'unknown'> = {};
-        await Promise.all(retryNames.map(async (n) => { retryAvailability[n] = await checkDomainAvailable(n); }));
-        winners[phase] = retryNames.find((n) => retryAvailability[n] === 'available') || candidates[0];
-      } catch (err) {
-        console.error('Pool retry error:', err);
-        winners[phase] = candidates[0];
+      // Entire phase pool is taken — widen the search, excluding every name
+      // seen so far across all rounds, until something available turns up or
+      // the round budget is exhausted. Never settle for a name already
+      // confirmed taken; if every round comes up empty, keep the most
+      // recently generated (least-searched, not a known-dead-end) candidate
+      // so at minimum the user sees an accurate "still checking/unverified"
+      // name rather than one silently locked in as taken.
+      const seen = new Set(allCandidates);
+      let lastRoundCandidates = candidates;
+      let found = '';
+      for (let round = 0; round < MAX_AVAILABILITY_ROUNDS && !found; round++) {
+        try {
+          const retryNames = await fetchEvolvedVariants(headers, lastRoundCandidates[0], Array.from(seen), 'wide');
+          const newNames = retryNames.filter((n) => !seen.has(n));
+          if (newNames.length === 0) break; // model has nothing new left to offer
+          newNames.forEach((n) => seen.add(n));
+          const retryAvailability: Record<string, 'available' | 'taken' | 'unknown'> = {};
+          await Promise.all(newNames.map(async (n) => { retryAvailability[n] = await checkDomainAvailable(n); }));
+          found = newNames.find((n) => retryAvailability[n] === 'available') || '';
+          lastRoundCandidates = newNames;
+        } catch (err) {
+          console.error(`Pool retry error (round ${round + 1}):`, err);
+          break;
+        }
       }
+      winners[phase] = found || lastRoundCandidates[0];
     }
     return winners;
   };
