@@ -23,14 +23,14 @@ declare global {
 }
 
 const INSPIRATION_IDEAS = [
-  { label: 'SaaS / AI', desc: 'An AI-powered project management platform that predicts team bottlenecks before they happen.', audience: 'Engineering managers, CTOs at Series A+ startups', context: 'Needs to sound intelligent, fast, and trustworthy. Avoid generic -ify or -ly suffixes. Think precision.' },
-  { label: 'Fintech', desc: 'A B2B payment infrastructure startup that lets any software company embed financial services in 10 minutes.', audience: 'Developer-founders, CFOs at mid-market companies', context: 'Think Stripe-like: clean, technical, short. Strong trademark posture is critical.' },
-  { label: 'Health', desc: 'A longevity-focused wellness brand offering personalized supplement stacks based on blood biomarker data.', audience: 'Biohackers, high-performing executives 35-55', context: 'Balance science credibility with approachability. Latin/Greek bio-roots work well.' },
-  { label: 'Gaming', desc: 'A cross-platform gaming social layer that replaces Discord for competitive teams.', audience: 'Esports athletes, Gen Z competitive gamers', context: 'High energy, punchy, 1-2 syllables. Can use aggressive or abstract sound symbolism.' },
-  { label: 'E-commerce', desc: 'A direct-to-consumer brand selling sustainable, minimalist everyday carry items.', audience: 'Urban millennials, design enthusiasts', context: 'Focus on sustainability, minimalism, and modern lifestyle. Avoid overly technical terms.' },
-  { label: 'Consumer', desc: 'A premium, high-caffeine sparkling water for gamers and creators.', audience: 'Gen Z, Twitch streamers, esports athletes', context: 'High energy, punchy, memorable. Can use playful or aggressive sound symbolism.' },
-  { label: 'Luxury', desc: 'An ultra-high-end skincare line using deep-sea minerals.', audience: 'Affluent women 35+, beauty connoisseurs', context: 'Elegant, sophisticated, evocative of the ocean and purity. French or Italian influence is acceptable.' },
-  { label: 'Legal / B2B', desc: 'A contract intelligence platform that auto-redlines legal documents using AI trained on 10M+ contracts.', audience: 'GCs, in-house legal teams at Fortune 500', context: 'Must convey precision, authority, and trust. Avoid startup-sounding names. Think: gravitas.' },
+  { label: 'SaaS / AI', desc: 'An AI-powered project management platform that predicts team bottlenecks before they happen.', audience: 'Engineering managers, CTOs at Series A+ startups', context: 'Needs to sound intelligent, fast, and trustworthy. Avoid generic -ify or -ly suffixes. Think precision.', positioning: 'The only PM platform that predicts bottlenecks before they cost you the sprint.' },
+  { label: 'Fintech', desc: 'A B2B payment infrastructure startup that lets any software company embed financial services in 10 minutes.', audience: 'Developer-founders, CFOs at mid-market companies', context: 'Think Stripe-like: clean, technical, short. Strong trademark posture is critical.', positioning: 'Embed financial services into any software product in 10 minutes, not 10 months.' },
+  { label: 'Health', desc: 'A longevity-focused wellness brand offering personalized supplement stacks based on blood biomarker data.', audience: 'Biohackers, high-performing executives 35-55', context: 'Balance science credibility with approachability. Latin/Greek bio-roots work well.', positioning: 'The only supplement stack built from your own blood biomarkers, not a generic quiz.' },
+  { label: 'Gaming', desc: 'A cross-platform gaming social layer that replaces Discord for competitive teams.', audience: 'Esports athletes, Gen Z competitive gamers', context: 'High energy, punchy, 1-2 syllables. Can use aggressive or abstract sound symbolism.', positioning: 'Built for competitive teams who outgrew Discord and need a real coordination layer.' },
+  { label: 'E-commerce', desc: 'A direct-to-consumer brand selling sustainable, minimalist everyday carry items.', audience: 'Urban millennials, design enthusiasts', context: 'Focus on sustainability, minimalism, and modern lifestyle. Avoid overly technical terms.', positioning: 'Everyday carry designed to last decades, not landfill in a year.' },
+  { label: 'Consumer', desc: 'A premium, high-caffeine sparkling water for gamers and creators.', audience: 'Gen Z, Twitch streamers, esports athletes', context: 'High energy, punchy, memorable. Can use playful or aggressive sound symbolism.', positioning: 'The high-caffeine sparkling water built for marathon streams, not morning meetings.' },
+  { label: 'Luxury', desc: 'An ultra-high-end skincare line using deep-sea minerals.', audience: 'Affluent women 35+, beauty connoisseurs', context: 'Elegant, sophisticated, evocative of the ocean and purity. French or Italian influence is acceptable.', positioning: 'Deep-sea mineral skincare for women who have already tried everything else.' },
+  { label: 'Legal / B2B', desc: 'A contract intelligence platform that auto-redlines legal documents using AI trained on 10M+ contracts.', audience: 'GCs, in-house legal teams at Fortune 500', context: 'Must convey precision, authority, and trust. Avoid startup-sounding names. Think: gravitas.', positioning: 'The only contract AI trained on 10M+ real contracts, not a generic legal chatbot.' },
 ];
 
 // SSE streams occasionally stall mid-response under upstream high-demand
@@ -1696,11 +1696,13 @@ export default function App() {
                                 setProductDescription('');
                                 setTargetAudience('');
                                 setAdditionalContext('');
+                                setPositioningStatement('');
                               } else {
                                 setSelectedInspiration(idea.label);
                                 setProductDescription(idea.desc);
                                 setTargetAudience(idea.audience);
                                 setAdditionalContext(idea.context || '');
+                                setPositioningStatement(idea.positioning);
                               }
                             }}
                             className={`text-[10px] font-mono px-2 py-1 active:scale-95 transition-all border ${
