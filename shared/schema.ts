@@ -17,3 +17,18 @@ export const users = pgTable('users', {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+// Idempotency guard for the Stripe webhook's credit-grant logic (predeploy-
+// security-audit finding). Stripe delivers webhooks at-least-once and retries
+// on any slow response or transient failure — without this, a retried
+// checkout.session.completed event would grant the 10-search pack again for
+// the same purchase. One row per successfully-credited checkout session id;
+// the webhook handler only grants credits when inserting here doesn't
+// conflict (onConflictDoNothing), guaranteeing exactly-once regardless of how
+// many times Stripe redelivers the same event.
+export const creditGrants = pgTable('credit_grants', {
+  checkoutSessionId: text('checkout_session_id').primaryKey(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export type CreditGrant = typeof creditGrants.$inferSelect;

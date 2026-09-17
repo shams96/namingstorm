@@ -13,7 +13,7 @@ import { runMigrations, StripeSync } from 'stripe-replit-sync';
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { sql as drizzleSql, eq as drizzleEq } from 'drizzle-orm';
-import { users } from './shared/schema.js';
+import { users, creditGrants } from './shared/schema.js';
 import { generateDomainVariants } from './src/utils/domainVariants.js';
 
 // Must match App.tsx's copies (no shared module imported by both client and
@@ -312,13 +312,26 @@ const evolveLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Auth middleware — accepts Firebase ID token or a guest session ID
+// Auth middleware — accepts Firebase ID token or (test/dev only) a legacy guest header.
 const verifyAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  // Guest mode: client sends a local UUID, no Firebase needed
-  const guestId = req.headers['x-guest-id'] as string | undefined;
-  if (guestId && guestId.length > 8) {
-    (req as any).user = { uid: `guest_${guestId}`, guest: true };
-    return next();
+  // CRITICAL (predeploy-security-audit finding, fixed here): this legacy
+  // X-Guest-ID path is a fully client-controlled, unauthenticated identity —
+  // any string >8 chars becomes a trusted uid with zero verification. The
+  // frontend has not sent this header since guests moved to real Firebase
+  // anonymous sign-in (verified: zero references in src/), but the server
+  // still accepted it, which meant checkAndConsumeGeneration's free-tier
+  // paywall could be defeated entirely by sending a fresh random X-Guest-ID
+  // on every request via a direct API call (curl/Postman, bypassing the
+  // frontend) — each "new" guest got its own zero-usage row. Restricted to
+  // non-production so the existing test suite (which mocks auth via this
+  // header, and where Vitest sets NODE_ENV=test automatically) keeps working
+  // unchanged, while production traffic must go through real Firebase auth.
+  if (process.env.NODE_ENV !== 'production') {
+    const guestId = req.headers['x-guest-id'] as string | undefined;
+    if (guestId && guestId.length > 8) {
+      (req as any).user = { uid: `guest_${guestId}`, guest: true };
+      return next();
+    }
   }
 
   const authHeader = req.headers.authorization;
@@ -470,10 +483,23 @@ export async function buildApp(): Promise<express.Application> {
           const session = stripeEvent.data.object as Stripe.Checkout.Session;
           if (session.mode === 'payment' && session.customer) {
             const db = await getDb();
-            const customerId = typeof session.customer === 'string' ? session.customer : session.customer.id;
-            await db.update(users)
-              .set({ paidCredits: drizzleSql`${users.paidCredits} + ${PAID_SEARCH_PACK_SIZE}` })
-              .where(drizzleEq(users.stripeCustomerId, customerId));
+            // Idempotency guard (predeploy-security-audit finding): Stripe
+            // redelivers webhooks at-least-once on any slow/failed response.
+            // Only grant credits if this checkout session hasn't been
+            // credited before — onConflictDoNothing + checking the returned
+            // row count is what makes this exactly-once, not just "best effort".
+            const inserted = await db.insert(creditGrants)
+              .values({ checkoutSessionId: session.id })
+              .onConflictDoNothing({ target: creditGrants.checkoutSessionId })
+              .returning();
+            if (inserted.length > 0) {
+              const customerId = typeof session.customer === 'string' ? session.customer : session.customer.id;
+              await db.update(users)
+                .set({ paidCredits: drizzleSql`${users.paidCredits} + ${PAID_SEARCH_PACK_SIZE}` })
+                .where(drizzleEq(users.stripeCustomerId, customerId));
+            } else {
+              console.log(`Skipped duplicate credit grant for already-processed checkout session ${session.id}`);
+            }
           }
         }
       } catch (creditError) {
