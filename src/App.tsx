@@ -754,11 +754,13 @@ export default function App() {
     headers: Record<string, string>,
     candidates: string[],
     allCandidates: string[],
-    checked: Record<string, CheckResult>
+    checked: Record<string, CheckResult>,
+    excludeNames: Set<string> = new Set()
   ): Promise<string> => {
     if (candidates.length === 0) return '';
+    const isUsable = (n: string) => !excludeNames.has(n);
 
-    const firstAvailable = candidates.find((n) => checked[n].status === 'available');
+    const firstAvailable = candidates.find((n) => checked[n].status === 'available' && isUsable(n));
     if (firstAvailable) return firstAvailable;
 
     // Entire phase pool is taken — widen the search across multiple rounds,
@@ -769,7 +771,7 @@ export default function App() {
     // from the full history — it can pick a guaranteed-available variant or an
     // 'unknown' name, but can *never* pick one this function itself already
     // confirmed 'taken', no matter which round it came from.
-    const seen = new Set(allCandidates);
+    const seen = new Set([...allCandidates, ...excludeNames]);
     const everChecked: Record<string, CheckResult> = { ...checked };
     let seedName = candidates[0];
     let found = '';
@@ -787,7 +789,7 @@ export default function App() {
       newNames.forEach((n) => seen.add(n));
 
       await Promise.all(newNames.map(async (n) => { everChecked[n] = await checkDomainDetailed(n); }));
-      found = newNames.find((n) => everChecked[n].status === 'available') || '';
+      found = newNames.find((n) => everChecked[n].status === 'available' && isUsable(n)) || '';
       seedName = newNames[0]; // keep widening from the newest batch next round
     }
 
@@ -800,11 +802,15 @@ export default function App() {
     // already registered but a brandable variant almost always is. Only if
     // NOTHING ever produced a variant do we fall further to an 'unknown'
     // name, and only after that to something not yet proven taken.
-    const withVariant = Object.values(everChecked).find((c) => c.variant);
+    // Every candidate here is also filtered through isUsable() so this phase
+    // never lands on a name another phase already claimed (see excludeNames
+    // in selectAvailableNames' repair pass below).
+    const withVariant = Object.values(everChecked).find((c) => c.variant && isUsable(variantToName(c.variant)));
     return withVariant?.variant
       ? variantToName(withVariant.variant)
-      : Object.keys(everChecked).find((n) => everChecked[n].status === 'unknown')
-        || Object.keys(everChecked).find((n) => everChecked[n].status !== 'taken')
+      : Object.keys(everChecked).find((n) => everChecked[n].status === 'unknown' && isUsable(n))
+        || Object.keys(everChecked).find((n) => everChecked[n].status !== 'taken' && isUsable(n))
+        || candidates.find(isUsable)
         || candidates[0];
   };
 
@@ -838,7 +844,24 @@ export default function App() {
     const [phase1, phase2, phase3] = await Promise.all(
       phases.map((phase) => selectAvailableNameForPhase(headers, pool[phase], allCandidates, checked))
     );
-    return { phase1, phase2, phase3 };
+
+    // The 3 phases pick independently and concurrently (see PERFORMANCE note
+    // above), so when two phases both exhaust their pool and fall back to a
+    // variant/unknown pick, they can converge on the same name (e.g. two
+    // pools both reducing to a "Panther"-root candidate and both landing on
+    // the same "Lapanther" brandable variant). Repair sequentially: only a
+    // phase that actually collided pays the cost of a re-run, excluding
+    // every name already claimed by an earlier phase.
+    const results: Record<'phase1' | 'phase2' | 'phase3', string> = { phase1, phase2, phase3 };
+    const claimed = new Set<string>();
+    for (const phase of phases) {
+      if (results[phase] && claimed.has(results[phase])) {
+        results[phase] = await selectAvailableNameForPhase(headers, pool[phase], allCandidates, checked, claimed);
+      }
+      if (results[phase]) claimed.add(results[phase]);
+    }
+
+    return results;
   };
 
   const handleGenerate = async () => {
